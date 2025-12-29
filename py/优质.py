@@ -240,7 +240,7 @@ class Spider(BaseSpider):
 
         try:
             # 如果category_id为1,2,3,4，则获取该分类下的子分类视频列表合成一个video_list列表
-            if category_id == '1' or category_id == '2' or category_id == '3' or category_id == '4':
+            if str(category_id) in ['1', '2', '3', '4']:
                 # 获取对应主分类下的所有子分类ID
                 home_content = self.homeContent('')
                 filters = home_content.get('filters', {})
@@ -267,8 +267,7 @@ class Spider(BaseSpider):
                         return []
 
                     # 使用线程池并发获取子分类数据
-                    max_workers = min(len(sub_categories),
-                                      10)  # 最大并发数不超过10或子分类数
+                    max_workers = min(len(sub_categories), 10)  # 最大并发数不超过10或子分类数
                     with ThreadPoolExecutor(max_workers=max_workers) as executor:
                         # 提交所有任务
                         future_to_sub = {executor.submit(fetch_sub_category, sub_cat): sub_cat
