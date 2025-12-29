@@ -242,7 +242,7 @@ class Spider(BaseSpider):
             # 发送请求并解析返回数据
             response = requests_lib.get(url, headers=self.headers)
             # 如果response为空且category_id为1,2,3,4，则获取该分类下的子分类视频列表合成一个列表后再返回
-            if not response.json()['list'] and category_id in ['1', '2', '3', '4']:
+            if category_id in ['1', '2', '3', '4']:
                 for child_category in self.category_map[category_id]['value']:
                     child_category_id = child_category['v']
                     child_category_url = f"{self.api_url}?ac=detail&t={child_category_id}&pg={pg}&limit=20"
