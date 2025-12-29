@@ -234,22 +234,42 @@ class Spider(BaseSpider):
         category_id = tid
         if ext and 'cid' in ext:
             category_id = ext['cid']
-        # 构建请求URL，使用正确的参数名
-        url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}&limit=20"
         videos = []  # 存储分类视频信息的列表
-        video_list = [] # 存储子分类视频信息的列表
+        video_list = []  # 存储子分类视频信息的列表
+
         try:
-            # 发送请求并解析返回数据
-            response = requests_lib.get(url, headers=self.headers)
-            # 如果response为空且category_id为1,2,3,4，则获取该分类下的子分类视频列表合成一个列表后再返回
-            if category_id in ['1', '2', '3', '4']:
-                for child_category in self.homeContent()[category_id]['value']:
-                    child_category_id = child_category['v']
-                    child_category_url = f"{self.api_url}?ac=detail&t={child_category_id}&pg={pg}&limit=20"
-                    child_category_response = requests_lib.get(child_category_url, headers=self.headers)
-                    video_list.extend(child_category_response.json()['list'])
+            # 如果category_id为1,2,3,4，则获取该分类下的子分类视频列表合成一个video_list列表
+            if category_id in [1, 2, 3, 4]:
+                # 获取对应主分类下的所有子分类ID
+                home_content = self.homeContent('')
+                filters = home_content.get('filters', {})
+
+                if str(category_id) in filters:
+                    sub_categories = filters[str(category_id)].get('value', [])
+
+                    # 遍历所有子分类获取视频数据
+                    for sub_cat in sub_categories:
+                        sub_cat_id = sub_cat.get('v')
+                        if sub_cat_id:
+                            # 构建子分类请求URL
+                            url = f"{self.api_url}?ac=detail&t={sub_cat_id}&pg={pg}&limit=4"
+                            response = requests_lib.get(
+                                url, headers=self.headers)
+
+                            if response.status_code == 200:
+                                sub_data = response.json()
+                                if 'list' in sub_data and sub_data['list']:
+                                    # 添加当前子分类的视频到列表
+                                    video_list.extend(sub_data['list'])
             else:
-                video_list = response.json()['list']
+                # 构建请求URL，使用正确的参数名
+                url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}&limit=20"
+                response = requests_lib.get(url, headers=self.headers)
+                if response.status_code == 200:
+                    data = response.json()
+                    if 'list' in data:
+                        video_list = data['list']
+
             # 提取视频信息并添加到列表中，过滤掉伦理片
             for video_info in video_list:
                 # 过滤掉伦理片
