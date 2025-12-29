@@ -358,7 +358,6 @@ class Spider(BaseSpider):
                     'vod_play_from': video_detail['vod_play_from'],
                     # 播放地址
                     'vod_play_url': video_detail['vod_play_url'],
-                    # 修复vod_pic字段
                     # 视频图片
                     'vod_pic': self.format_ipc_url(video_detail['vod_pic'])
                 })

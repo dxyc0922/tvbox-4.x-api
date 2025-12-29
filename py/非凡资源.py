@@ -295,6 +295,29 @@ class Spider(BaseSpider):
             video_detail = response.json()['list'][0]
             # 检查视频是否为伦理片，如果是则跳过
             if not self.should_filter_video(video_detail):
+                # 过滤播放来源和播放地址，移除包含"feifan"的线路
+                play_from = video_detail['vod_play_from']
+                play_url = video_detail['vod_play_url']
+
+                # 分割播放来源和播放地址
+                play_from_list = play_from.split('$$$')
+                play_url_list = play_url.split('$$$')
+
+                # 过滤掉包含"feifan"的线路
+                filtered_sources = []
+                filtered_urls = []
+
+                for i, source in enumerate(play_from_list):
+                    # 如果来源不包含"feifan"，则保留
+                    if 'feifan' not in source:
+                        filtered_sources.append(source)
+                        if i < len(play_url_list):
+                            filtered_urls.append(play_url_list[i])
+
+                # 重新组合播放来源和播放地址
+                filtered_play_from = '$$$'.join(filtered_sources)
+                filtered_play_url = '$$$'.join(filtered_urls)
+
                 videos.append({
                     'type_name': video_detail['type_name'],  # 类型名称
                     'vod_id': video_detail['vod_id'],  # 视频ID
@@ -305,10 +328,10 @@ class Spider(BaseSpider):
                     'vod_actor': video_detail['vod_actor'],  # 演员
                     'vod_director': video_detail['vod_director'],  # 导演
                     'vod_content': video_detail['vod_content'],  # 简介
-                    # 播放来源
-                    'vod_play_from': video_detail['vod_play_from'],
-                    # 播放地址
-                    'vod_play_url': video_detail['vod_play_url'],
+                    # 过滤后的播放来源
+                    'vod_play_from': filtered_play_from,
+                    # 过滤后的播放地址
+                    'vod_play_url': filtered_play_url,
                     # 视频图片
                     'vod_pic': video_detail['vod_pic']
                 })
