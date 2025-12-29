@@ -1,0 +1,66 @@
+{
+    "sites": [
+        {
+            "key": "醉挽清风",
+            "name": "醉挽清风",
+            "type": 4,
+            "api": "http://我不是.摸鱼儿.com/api/yyutx.php",
+            "searchable": 1,
+            "quickSearch": 1,
+            "filterable": 1,
+            "changeable": 1
+        },
+        {
+            "key": "非凡资源",
+            "name": "非凡资源",
+            "type": 3,
+            "api": "./py/非凡资源.py",
+            "searchable": 1,
+            "quickSearch": 1,
+            "filterable": 1,
+            "changeable": 1
+        },
+        {
+            "key": "暴风资源",
+            "name": "暴风资源",
+            "type": 3,
+            "api": "./py/暴风资源.py",
+            "searchable": 1,
+            "quickSearch": 1,
+            "filterable": 1,
+            "changeable": 1
+        }
+    ],
+    "doh": [
+        {
+            "name": "✨阿里DNS✨",
+            "url": "https://dns.alidns.com/dns-query",
+            "ips": [
+                "223.5.5.5",
+                "223.6.6.6",
+                "2400:3200::1",
+                "2400:3200:baba::1"
+            ]
+        },
+        {
+            "name": "✨Cloudflare✨",
+            "url": "https://cloudflare-dns.com/dns-query",
+            "ips": [
+                "1.1.1.1",
+                "1.0.0.1",
+                "2606:4700:4700::1111",
+                "2606:4700:4700::1001"
+            ]
+        },
+        {
+            "name": "✨谷歌DNS✨",
+            "url": "https://dns.google/dns-query",
+            "ips": [
+                "8.8.4.4",
+                "8.8.8.8",
+                "2001:4860:4860::8888",
+                "2001:4860:4860::8844"
+            ]
+        }
+    ]
+}
