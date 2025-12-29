@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # @Author  : dxyc0922
 # @Time    : 2025/12/30
-# @file    : 非凡资源.py
+# @file    : 优质.py
 
 # 导入必要的库
 import requests as requests_lib  # HTTP请求库，用于发送网络请求
@@ -18,7 +18,7 @@ sys.path.append('..')
 
 class Spider(BaseSpider):
     """
-    非凡资源爬虫类
+    优质资源爬虫类
     继承自BaseSpider，实现视频资源的爬取功能
     """
 
@@ -32,7 +32,7 @@ class Spider(BaseSpider):
         self.api_url = ''  # API接口URL
         self.headers = {}   # HTTP请求头
         # 定义需要过滤的类型ID
-        self.filted_type_ids = {34}  # 34:伦理片
+        self.filted_type_ids = {19, 61, 92, 93}  # 过滤类型ID
         # 防抖相关变量
         self.category_call_lock = threading.Lock()  # 线程锁，防止并发问题
         self.category_debounce_timer = None         # 防抖定时器
@@ -55,9 +55,9 @@ class Spider(BaseSpider):
         Args:
             extend (str): 扩展参数，默认为空字符串
         """
-        self.name = '非凡资源'  # 爬虫名称
-        self.home_url = 'https://ffzy.tv'  # 网站主页URL
-        self.api_url = 'https://api.ffzyapi.com'  # 获取视频数据API
+        self.name = '优质资源'  # 爬虫名称
+        self.home_url = 'https://yzzy.tv'  # 网站主页URL
+        self.api_url = 'https://api.yzzy-api.com/inc/apijson.php'  # 获取视频数据API
         # 设置请求头，模拟浏览器访问
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'}
@@ -115,7 +115,7 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含分类信息和筛选条件的字典
         """
-        # 返回分类信息，包含电影、连续剧、动漫、综艺、短剧
+        # 返回分类信息
         # 同时返回各分类下的子分类
         return {
             'class': [
@@ -123,45 +123,51 @@ class Spider(BaseSpider):
                 {'type_id': '2', 'type_name': '连续剧'},    # 连续剧分类
                 {'type_id': '4', 'type_name': '动漫片'},    # 动漫片分类
                 {'type_id': '3', 'type_name': '综艺片'},    # 综艺片分类
-                {'type_id': '36', 'type_name': '短剧'}       # 短剧分类
+                {'type_id': '78', 'type_name': '搞笑'},    # 搞笑分类
+                {'type_id': '79', 'type_name': '音乐'},     # 音乐分类
+                {'type_id': '80', 'type_name': '影视'},    # 影视分类
+                {'type_id': '81', 'type_name': '汽车'},     # 汽车分类
+                {'type_id': '94', 'type_name': '体育'},     # 体育分类
+                {'type_id': '83', 'type_name': '短剧'}       # 短剧分类
             ],
             'filters': {
                 # 电影分类下的子分类
                 '1': {'key': 'cid', 'name': '分类', 'value': [
-                    {'n': '动作片', 'v': '6'},    # 动作片
-                    {'n': '喜剧片', 'v': '7'},    # 喜剧片
-                    {'n': '爱情片', 'v': '8'},    # 爱情片
-                    {'n': '科幻片', 'v': '9'},    # 科幻片
-                    {'n': '恐怖片', 'v': '10'},    # 恐怖片
-                    {'n': '剧情片', 'v': '11'},    # 剧情片
-                    {'n': '战争片', 'v': '12'},    # 战争片
+                    {'n': '动作片', 'v': '5'},    # 动作片
+                    {'n': '喜剧片', 'v': '6'},    # 喜剧片
+                    {'n': '爱情片', 'v': '7'},    # 爱情片
+                    {'n': '科幻片', 'v': '8'},    # 科幻片
+                    {'n': '恐怖片', 'v': '9'},    # 恐怖片
+                    {'n': '剧情片', 'v': '10'},    # 剧情片
+                    {'n': '战争片', 'v': '11'},    # 战争片
                     {'n': '纪录片', 'v': '20'},    # 纪录片
                 ]},
                 # 连续剧分类下的子分类
                 '2': {'key': 'cid', 'name': '分类', 'value': [
-                    {'n': '国产剧', 'v': '13'},    # 国产剧
-                    {'n': '香港剧', 'v': '14'},    # 香港剧
-                    {'n': '韩国剧', 'v': '15'},    # 韩国剧
-                    {'n': '欧美剧', 'v': '16'},    # 欧美剧
-                    {'n': '台湾剧', 'v': '21'},    # 台湾剧
-                    {'n': '日本剧', 'v': '22'},    # 日本剧
-                    {'n': '海外剧', 'v': '23'},    # 海外剧
-                    {'n': '泰国剧', 'v': '24'}     # 泰国剧
+                    {'n': '国产剧', 'v': '12'},    # 国产剧
+                    {'n': '香港剧', 'v': '16'},    # 香港剧
+                    {'n': '韩国剧', 'v': '14'},    # 韩国剧
+                    {'n': '欧美剧', 'v': '15'},    # 欧美剧
+                    {'n': '台湾剧', 'v': '13'},    # 台湾剧
+                    {'n': '日本剧', 'v': '18'},    # 日本剧
+                    {'n': '海外剧', 'v': '54'},    # 海外剧
+                    {'n': '泰国剧', 'v': '17'}     # 泰国剧
                 ]},
                 # 综艺分类下的子分类
                 '3': {'key': 'cid', 'name': '分类', 'value': [
-                    {'n': '大陆综艺', 'v': '25'},  # 大陆综艺
-                    {'n': '港台综艺', 'v': '26'},  # 港台综艺
-                    {'n': '日韩综艺', 'v': '27'},  # 日韩综艺
-                    {'n': '欧美综艺', 'v': '28'}   # 欧美综艺
+                    {'n': '大陆综艺', 'v': '62'},  # 大陆综艺
+                    {'n': '港台综艺', 'v': '63'},  # 港台综艺
+                    {'n': '日韩综艺', 'v': '64'},  # 日韩综艺
+                    {'n': '欧美综艺', 'v': '65'}   # 欧美综艺
                 ]},
                 # 动漫分类下的子分类
                 '4': {'key': 'cid', 'name': '分类', 'value': [
-                    {'n': '国产动漫', 'v': '29'},  # 国产动漫
-                    {'n': '日韩动漫', 'v': '30'},  # 日韩动漫
-                    {'n': '欧美动漫', 'v': '31'},  # 欧美动漫
-                    {'n': '港台动漫', 'v': '32'},  # 港台动漫
-                    {'n': '海外动漫', 'v': '33'}   # 海外动漫
+                    {'n': '国产动漫', 'v': '66'},  # 国产动漫
+                    {'n': '日韩动漫', 'v': '67'},  # 日韩动漫
+                    {'n': '欧美动漫', 'v': '68'},  # 欧美动漫
+                    {'n': '港台动漫', 'v': '69'},  # 港台动漫
+                    {'n': '海外动漫', 'v': '70'},  # 海外动漫
+                    {'n': '动漫电影', 'v': '41'}   # 动漫电影
                 ]}
             }
         }
@@ -176,7 +182,7 @@ class Spider(BaseSpider):
         videos = []  # 存储视频信息的列表
         try:
             # 获取首页推荐视频数据
-            response = requests_lib.get(f"{self.home_url}/index.php/ajax/data?mid=1",
+            response = requests_lib.get(f"{self.api_url}?ac=detail",
                                         headers=self.headers)
             video_list = response.json()['list']  # 解析返回的JSON数据
             # 提取视频信息并添加到列表中，过滤掉伦理片
@@ -232,7 +238,7 @@ class Spider(BaseSpider):
         if ext and 'cid' in ext:
             category_id = ext['cid']
         # 构建请求URL，使用正确的参数名
-        url = f"{self.home_url}/index.php/ajax/data?mid=1&tid={category_id}&page={pg}&limit=20"
+        url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}&limit=20"
         videos = []  # 存储分类视频信息的列表
         try:
             # 发送请求并解析返回数据
@@ -290,34 +296,11 @@ class Spider(BaseSpider):
         try:
             # 获取视频详细信息
             response = requests_lib.get(
-                f"{self.api_url}/api.php/provide/vod/?ac=detail&ids={video_id}",
+                f"{self.api_url}?ac=detail&ids={video_id}",
                 headers=self.headers)
             video_detail = response.json()['list'][0]
             # 检查视频是否为伦理片，如果是则跳过
             if not self.should_filter_video(video_detail):
-                # 过滤播放来源和播放地址，移除包含"feifan"的线路
-                play_from = video_detail['vod_play_from']
-                play_url = video_detail['vod_play_url']
-
-                # 分割播放来源和播放地址
-                play_from_list = play_from.split('$$$')
-                play_url_list = play_url.split('$$$')
-
-                # 过滤掉包含"feifan"的线路
-                filtered_sources = []
-                filtered_urls = []
-
-                for i, source in enumerate(play_from_list):
-                    # 如果来源不包含"feifan"，则保留
-                    if 'feifan' not in source:
-                        filtered_sources.append(source)
-                        if i < len(play_url_list):
-                            filtered_urls.append(play_url_list[i])
-
-                # 重新组合播放来源和播放地址
-                filtered_play_from = '$$$'.join(filtered_sources)
-                filtered_play_url = '$$$'.join(filtered_urls)
-
                 videos.append({
                     'type_name': video_detail['type_name'],  # 类型名称
                     'vod_id': video_detail['vod_id'],  # 视频ID
@@ -328,10 +311,10 @@ class Spider(BaseSpider):
                     'vod_actor': video_detail['vod_actor'],  # 演员
                     'vod_director': video_detail['vod_director'],  # 导演
                     'vod_content': video_detail['vod_content'],  # 简介
-                    # 过滤后的播放来源
-                    'vod_play_from': filtered_play_from,
-                    # 过滤后的播放地址
-                    'vod_play_url': filtered_play_url,
+                    # 播放来源
+                    'vod_play_from': video_detail['vod_play_from'],
+                    # 播放地址
+                    'vod_play_url': video_detail['vod_play_url'],
                     # 视频图片
                     'vod_pic': video_detail['vod_pic']
                 })
@@ -358,7 +341,7 @@ class Spider(BaseSpider):
         try:
             # 发送搜索请求
             response = requests_lib.get(
-                f"{self.api_url}/api.php/provide/vod?ac=detail&wd={search_key}",
+                f"{self.api_url}?ac=detail&wd={search_key}",
                 headers=self.headers)
             video_list = response.json()['list']  # 解析返回数据
             # 提取搜索结果并添加到列表中，过滤掉伦理片
