@@ -240,7 +240,7 @@ class Spider(BaseSpider):
 
         try:
             # 如果category_id为1,2,3,4，则获取该分类下的子分类视频列表合成一个video_list列表
-            if category_id in [1, 2, 3, 4]:
+            if category_id in ['1', '2', '3', '4']:
                 # 获取对应主分类下的所有子分类ID
                 home_content = self.homeContent('')
                 filters = home_content.get('filters', {})
