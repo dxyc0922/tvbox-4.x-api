@@ -11,6 +11,7 @@ import base64 as base64_lib     # base64编码解码库
 from base.spider import Spider as BaseSpider  # 导入基础爬虫类
 from urllib import parse as urlparse_lib      # URL解析库
 import threading                # 线程库，用于实现防抖功能
+from concurrent.futures import ThreadPoolExecutor, as_completed  # 并发处理库
 
 # 添加上级目录到系统路径
 sys.path.append('..')
@@ -247,23 +248,39 @@ class Spider(BaseSpider):
                 if str(category_id) in filters:
                     sub_categories = filters[str(category_id)].get('value', [])
 
-                    # 遍历所有子分类获取视频数据
-                    for sub_cat in sub_categories:
+                    # 使用线程池并发处理子分类请求
+                    def fetch_sub_category(sub_cat):
                         sub_cat_id = sub_cat.get('v')
                         if sub_cat_id:
                             # 构建子分类请求URL
-                            url = f"{self.api_url}?ac=detail&t={sub_cat_id}&pg={pg}&limit=4"
-                            response = requests_lib.get(
-                                url, headers=self.headers)
+                            url = f"{self.api_url}?ac=detail&t={sub_cat_id}&pg={pg}"
+                            try:
+                                response = requests_lib.get(
+                                    url, headers=self.headers, timeout=10)
+                                if response.status_code == 200:
+                                    sub_data = response.json()
+                                    if 'list' in sub_data and sub_data['list']:
+                                        return sub_data['list']
+                            except Exception:
+                                # 如果请求失败，返回空列表
+                                return []
+                        return []
 
-                            if response.status_code == 200:
-                                sub_data = response.json()
-                                if 'list' in sub_data and sub_data['list']:
-                                    # 添加当前子分类的视频到列表
-                                    video_list.extend(sub_data['list'])
+                    # 使用线程池并发获取子分类数据
+                    max_workers = min(len(sub_categories), 10)  # 最大并发数不超过5或子分类数
+                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                        # 提交所有任务
+                        future_to_sub = {executor.submit(fetch_sub_category, sub_cat): sub_cat
+                                         for sub_cat in sub_categories}
+
+                        # 收集结果
+                        for future in as_completed(future_to_sub):
+                            sub_videos = future.result()
+                            if sub_videos:
+                                video_list.extend(sub_videos)
             else:
                 # 构建请求URL，使用正确的参数名
-                url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}&limit=20"
+                url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}"
                 response = requests_lib.get(url, headers=self.headers)
                 if response.status_code == 200:
                     data = response.json()
