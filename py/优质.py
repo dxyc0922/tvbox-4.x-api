@@ -123,10 +123,7 @@ class Spider(BaseSpider):
                 {'type_id': '2', 'type_name': '连续剧'},    # 连续剧分类
                 {'type_id': '4', 'type_name': '动漫片'},    # 动漫片分类
                 {'type_id': '3', 'type_name': '综艺片'},    # 综艺片分类
-                {'type_id': '78', 'type_name': '搞笑'},    # 搞笑分类
                 {'type_id': '79', 'type_name': '音乐'},     # 音乐分类
-                {'type_id': '80', 'type_name': '影视'},    # 影视分类
-                {'type_id': '81', 'type_name': '汽车'},     # 汽车分类
                 {'type_id': '94', 'type_name': '体育'},     # 体育分类
                 {'type_id': '83', 'type_name': '短剧'}       # 短剧分类
             ],
@@ -240,10 +237,19 @@ class Spider(BaseSpider):
         # 构建请求URL，使用正确的参数名
         url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}&limit=20"
         videos = []  # 存储分类视频信息的列表
+        video_list = [] # 存储子分类视频信息的列表
         try:
             # 发送请求并解析返回数据
             response = requests_lib.get(url, headers=self.headers)
-            video_list = response.json()['list']
+            # 如果response为空且category_id为1,2,3,4，则获取该分类下的子分类视频列表合成一个列表后再返回
+            if not response.json()['list'] and category_id in ['1', '2', '3', '4']:
+                for child_category in self.category_map[category_id]['value']:
+                    child_category_id = child_category['v']
+                    child_category_url = f"{self.api_url}?ac=detail&t={child_category_id}&pg={pg}&limit=20"
+                    child_category_response = requests_lib.get(child_category_url, headers=self.headers)
+                    video_list.extend(child_category_response.json()['list'])
+            else:
+                video_list = response.json()['list']
             # 提取视频信息并添加到列表中，过滤掉伦理片
             for video_info in video_list:
                 # 过滤掉伦理片
