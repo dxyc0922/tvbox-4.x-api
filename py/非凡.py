@@ -26,6 +26,20 @@ class Spider:
             "Referer": "https://ffzy.tv/"
         }
 
+    def getName(self):
+        """
+        获取爬虫名称
+        :return: 爬虫名称
+        """
+        return "非凡资源站"
+
+    def getDependence(self):
+        """
+        获取依赖库
+        :return: 依赖库列表
+        """
+        return ["requests", "lxml"]
+
     def init(self, extend=""):
         """
         初始化爬虫
