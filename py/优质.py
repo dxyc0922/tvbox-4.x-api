@@ -267,7 +267,8 @@ class Spider(BaseSpider):
                         return []
 
                     # 使用线程池并发获取子分类数据
-                    max_workers = min(len(sub_categories), 10)  # 最大并发数不超过10或子分类数
+                    max_workers = min(len(sub_categories),
+                                      10)  # 最大并发数不超过10或子分类数
                     with ThreadPoolExecutor(max_workers=max_workers) as executor:
                         # 提交所有任务
                         future_to_sub = {executor.submit(fetch_sub_category, sub_cat): sub_cat
@@ -278,6 +279,12 @@ class Spider(BaseSpider):
                             sub_videos = future.result()
                             if sub_videos:
                                 video_list.extend(sub_videos)
+                    # 根据vod_time对所有视频进行排序（降序，最新的在前）
+                    try:
+                        video_list.sort(key=lambda x: x.get(
+                            'vod_time', ''), reverse=True)
+                    except Exception as e:
+                        print(f"排序失败: {e}")
             else:
                 # 构建请求URL，使用正确的参数名
                 url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}"
@@ -288,6 +295,7 @@ class Spider(BaseSpider):
                         video_list = data['list']
 
             # 提取视频信息并添加到列表中，过滤掉伦理片
+            print(video_list)
             for video_info in video_list:
                 # 过滤掉伦理片
                 if not self.should_filter_video(video_info):
@@ -578,4 +586,4 @@ if __name__ == '__main__':
     # pass
     Spider = Spider()
     Spider.init()
-    print(Spider._perform_category_request('1', '1', '', ''))
+    Spider._perform_category_request('1', '1', '', '')
