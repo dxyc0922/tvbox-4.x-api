@@ -49,6 +49,16 @@
             "quickSearch": 1,
             "filterable": 1,
             "changeable": 1
+        },
+        {
+            "key": "ok",
+            "name": "ok",
+            "type": 3,
+            "api": "./py/ok.py",
+            "searchable": 1,
+            "quickSearch": 1,
+            "filterable": 1,
+            "changeable": 1
         }
     ],
     "doh": [
