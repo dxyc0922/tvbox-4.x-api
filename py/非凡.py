@@ -3,13 +3,12 @@ import os
 import json
 import time
 import requests
-from lxml import etree
-from com.github.catvod import Proxy  # type: ignore
-from com.chaquo.python import Python  # type: ignore
-from abc import abstractmethod, ABCMeta
-from importlib.machinery import SourceFileLoader
+# from lxml import etree
+# from com.github.catvod import Proxy  # type: ignore
+# from com.chaquo.python import Python  # type: ignore
+# from abc import abstractmethod, ABCMeta
+# from importlib.machinery import SourceFileLoader
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib import parse as urlparse_lib      # URL解析库
 
 
 class Spider:
@@ -407,63 +406,51 @@ class Spider:
             print(f"获取子分类视频失败: {str(e)}")
             return []
 
-    def detailContent(self, ids):
+    def detailContent(self, did):
         """
-        获取详情内容
-        :param ids: 内容ID列表
-        :return: 详情内容数据
+        获取视频详情内容
+
+        Args:
+            did (list): 视频ID列表
+
+        Returns:
+            dict: 包含视频详情和分页信息的字典
         """
+        video_id = did[0]  # 获取第一个视频ID
+        videos = []  # 存储视频详情的列表
+        params = {
+            "ac": "detail",
+            "ids": video_id
+        }
         try:
-            print(f"正在获取详情内容，ID: {ids}")
-
-            if not ids:
-                return {"list": []}
-
-            # 获取详情信息 - 支持批量获取
-            ids_str = ','.join(ids)
-            params = {
-                "ac": "detail",
-                "ids": ids_str
-            }
-
+            # 获取视频详细信息
             response = self.fetch(self.API_URL, params=params, headers={
                                   "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
-            if response.status_code != 200:
-                print(f"获取详情数据失败，状态码: {response.status_code}")
-                return {"list": []}
-
-            data = json.loads(response.text)
-            details = []
-
-            if "list" in data and data["list"]:
-                for item in data["list"]:
-                    # 过滤掉伦理片分类的视频
-                    if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
-                        detail = {
-                            "vod_id": str(item["vod_id"]),
-                            "vod_name": item["vod_name"],
-                            "vod_pic": item.get("vod_pic", ""),  # 详情接口通常有图片
-                            "type_name": item.get("type_name", ""),
-                            "vod_year": item.get("vod_year", ""),
-                            "vod_area": item.get("vod_area", ""),
-                            "vod_remarks": item.get("vod_remarks", ""),
-                            "vod_actor": item.get("vod_actor", ""),
-                            "vod_director": item.get("vod_director", ""),
-                            "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
-                            "vod_play_from": item.et("vod_play_from", ""),
-                            "vod_play_url": item.get("vod_play_url", ""),
-                            "vod_lang": item.get("vod_lang", ""),
-                            "vod_class": item.get("vod_class", ""),
-                            "vod_pubdate": item.get("vod_pubdate", "")
-                        }
-                        details.append(detail)
-
-            result = {"list": details}
-            print(f"详情内容获取成功: {len(details)} 个详情")
-            return result
+            video_detail = response.json()['list'][0]
+            # 检查视频是否为伦理片，如果是则跳过
+            if video_detail.get("type_id") not in self.EXCLUDE_CATEGORIES:
+                videos.append({
+                    'type_name': video_detail['type_name'],  # 类型名称
+                    'vod_id': video_detail['vod_id'],  # 视频ID
+                    'vod_name': video_detail['vod_name'],  # 视频名称
+                    'vod_remarks': video_detail['vod_remarks'],  # 视频备注
+                    'vod_year': video_detail['vod_year'],  # 年份
+                    'vod_area': video_detail['vod_area'],  # 地区
+                    'vod_actor': video_detail['vod_actor'],  # 演员
+                    'vod_director': video_detail['vod_director'],  # 导演
+                    'vod_content': video_detail['vod_content'],  # 简介
+                    # 播放来源
+                    'vod_play_from': video_detail['vod_play_from'],
+                    # 播放地址
+                    'vod_play_url': video_detail['vod_play_url'],
+                    # 视频图片
+                    'vod_pic': video_detail['vod_pic']
+                })
         except Exception as e:
-            print(f"获取详情内容失败: {str(e)}")
-            return {"list": []}
+            # 请求失败时返回错误信息
+            return {'list': [], 'msg': str(e), 'page': 0, 'pagecount': 0, 'limit': 0, 'total': 0}
+        # 返回视频详情
+        return {'list': videos, 'page': 1, 'pagecount': 1, 'limit': 1, 'total': 1}
 
     def searchContent(self, key, quick, pg="1"):
         """
@@ -534,154 +521,19 @@ class Spider:
         """
         return {'url': id, 'header': {"User-Agent": self.USER_AGENT}, 'parse': 0, 'jx': 0}
 
-    def localProxy(self, params):
+    def localProxy(self, param):
         """
-        本地代理方法，用于处理广告
-
-        Args:
-            params (dict): 代理参数
-
-        Returns:
-            list: 包含状态码、内容类型和处理后内容的列表
+        本地代理方法
+        :param param: 代理参数
+        :return: 代理结果
         """
-        # 解码URL并删除广告
-        decoded_url = self.b64decode(params['url'])
-        cleaned_content = self.del_ads(decoded_url)
-        return [200, 'application/vnd.apple.mpegurl', cleaned_content]
+        pass
 
     def destroy(self):
         """
         销毁爬虫实例，释放资源
         """
         print("非凡资源站爬虫已销毁")
-
-    def b64encode(self, data):
-        """
-        base64编码方法
-
-        Args:
-            data (str): 需要编码的数据
-
-        Returns:
-            str: base64编码后的字符串
-        """
-        return base64_lib.b64encode(data.encode('utf-8')).decode('utf-8')
-
-    def b64decode(self, data):
-        """
-        base64解码方法
-
-        Args:
-            data (str): 需要解码的数据
-
-        Returns:
-            str: base64解码后的字符串
-        """
-        return base64_lib.b64decode(data.encode('utf-8')).decode('utf-8')
-
-    def del_ads(self, url):
-        """
-        删除广告的方法
-
-        Args:
-            url (str): 视频播放URL
-
-        Returns:
-            str: 去除广告后的内容
-        """
-        # 定义协议和路径分隔符
-        protocol = 'http'
-        full_url = url
-        path_separator = '/'
-        # 发送请求获取内容
-        response = requests_lib.get(url=full_url, headers=self.headers)
-
-        if response.status_code != 200:
-            return ''
-
-        # 分割返回的内容为行
-        content_lines = response.text.splitlines()
-
-        # 检查是否为M3U8格式并处理混合内容
-        if content_lines and content_lines[0] == '#EXTM3U' and len(content_lines) > 2 and 'mixed.m3u8' in content_lines[2]:
-            redirect_url = content_lines[2]
-            if redirect_url.startswith(protocol):
-                pass  # 已是完整URL
-            elif redirect_url.startswith(path_separator):
-                redirect_url = self._build_base_url(full_url) + redirect_url
-            else:
-                redirect_url = full_url.rsplit(path_separator, maxsplit=1)[
-                    0] + path_separator + redirect_url
-            # 递归处理广告
-            return self.del_ads(redirect_url)
-        else:
-            return self._process_m3u8_content(content_lines, full_url)
-
-    def _build_base_url(self, full_url):
-        """
-        构建基础URL
-
-        Args:
-            full_url (str): 完整URL
-
-        Returns:
-            str: 基础URL
-        """
-        parsed_url = urlparse_lib.urlparse(full_url)
-        return urlparse_lib.urlunparse([parsed_url.scheme, parsed_url.netloc, '', '', '', ''])
-
-    def _process_m3u8_content(self, content_lines, original_url):
-        """
-        处理M3U8内容，移除广告
-
-        Args:
-            content_lines (list): M3U8内容行列表
-            original_url (str): 原始URL
-
-        Returns:
-            str: 处理后的内容
-        """
-        # 构建基础URL
-        base_url = original_url.rsplit('/', maxsplit=1)[0] + '/'
-        base_url_full = self._build_base_url(original_url)
-
-        processed_lines = []  # 存储处理后的行
-        discontinuity_indices = []  # 存储不连续性标记的索引
-
-        # 处理每一行内容
-        for index, line in enumerate(content_lines):
-            if '.ts' in line:
-                # 处理.ts文件路径
-                if line.startswith('http'):
-                    processed_lines.append(line)
-                elif line.startswith('/'):
-                    processed_lines.append(base_url_full + line.lstrip('/'))
-                else:
-                    processed_lines.append(base_url + line)
-            elif line == '#EXT-X-DISCONTINUITY':
-                # 记录不连续性标记的位置
-                processed_lines.append(line)
-                discontinuity_indices.append(index)
-            else:
-                processed_lines.append(line)
-
-        removal_ranges = []  # 要删除的区间
-        # 根据不连续性标记确定要删除的区间
-        if len(discontinuity_indices) >= 1:
-            removal_ranges.append(
-                (discontinuity_indices[0], discontinuity_indices[0]))
-        if len(discontinuity_indices) >= 3:
-            removal_ranges.append(
-                (discontinuity_indices[1], discontinuity_indices[2]))
-        if len(discontinuity_indices) >= 5:
-            removal_ranges.append(
-                (discontinuity_indices[3], discontinuity_indices[4]))
-
-        # 过滤掉不需要的行
-        filtered_lines = [line for index, line in enumerate(processed_lines)
-                          if not any(start <= index <= end for start, end in removal_ranges)]
-
-        return '\n'.join(filtered_lines)
 
     def fetch(self, url, params=None, cookies=None, headers=None, timeout=10, verify=True, stream=False, allow_redirects=True):
         """
@@ -715,3 +567,9 @@ class Spider:
             return ""
         clean = re.compile('<.*?>')
         return re.sub(clean, '', src).strip()
+
+
+if __name__ == "__main__":
+    spider = Spider()
+    spider.init()
+    print(spider.detailContent(['51818']))
