@@ -1,13 +1,13 @@
 import re
-# import os
+import os
 import json
-# import time
+import time
 import requests
-# from lxml import etree
-# from com.github.catvod import Proxy # type: ignore
-# from com.chaquo.python import Python # type: ignore
-# from abc import abstractmethod, ABCMeta
-# from importlib.machinery import SourceFileLoader
+from lxml import etree
+from com.github.catvod import Proxy # type: ignore
+from com.chaquo.python import Python # type: ignore
+from abc import abstractmethod, ABCMeta
+from importlib.machinery import SourceFileLoader
 
 
 class Spider:
@@ -67,7 +67,7 @@ class Spider:
             
             data = json.loads(response.text)
             
-            # 提取分类信息
+            # 提取分类信息 - 只获取一级分类（type_pid为0）
             categories = []
             if "class" in data and data["class"]:
                 for cat in data["class"]:
@@ -84,16 +84,14 @@ class Spider:
                 "1": [  # 电影
                     {"key": "class", "name": "类型", "value": [
                         {"n": "全部", "v": ""},
+                        {"n": "动作", "v": "动作"},
                         {"n": "喜剧", "v": "喜剧"},
                         {"n": "爱情", "v": "爱情"},
-                        {"n": "恐怖", "v": "恐怖"},
-                        {"n": "动作", "v": "动作"},
                         {"n": "科幻", "v": "科幻"},
+                        {"n": "恐怖", "v": "恐怖"},
                         {"n": "剧情", "v": "剧情"},
                         {"n": "战争", "v": "战争"},
-                        {"n": "犯罪", "v": "犯罪"},
-                        {"n": "奇幻", "v": "奇幻"},
-                        {"n": "古装", "v": "古装"}
+                        {"n": "记录", "v": "记录"}
                     ]},
                     {"key": "area", "name": "地区", "value": [
                         {"n": "全部", "v": ""},
@@ -118,25 +116,23 @@ class Spider:
                 "2": [  # 电视剧
                     {"key": "class", "name": "类型", "value": [
                         {"n": "全部", "v": ""},
-                        {"n": "古装", "v": "古装"},
-                        {"n": "战争", "v": "战争"},
-                        {"n": "青春", "v": "青春"},
-                        {"n": "偶像", "v": "偶像"},
-                        {"n": "言情", "v": "言情"},
-                        {"n": "家庭", "v": "家庭"},
-                        {"n": "犯罪", "v": "犯罪"},
-                        {"n": "动作", "v": "动作"},
-                        {"n": "奇幻", "v": "奇幻"},
-                        {"n": "剧情", "v": "剧情"}
+                        {"n": "国产", "v": "国产"},
+                        {"n": "香港", "v": "香港"},
+                        {"n": "韩国", "v": "韩国"},
+                        {"n": "欧美", "v": "欧美"},
+                        {"n": "台湾", "v": "台湾"},
+                        {"n": "日本", "v": "日本"},
+                        {"n": "海外", "v": "海外"},
+                        {"n": "泰国", "v": "泰国"}
                     ]},
                     {"key": "area", "name": "地区", "value": [
                         {"n": "全部", "v": ""},
                         {"n": "大陆", "v": "大陆"},
                         {"n": "香港", "v": "香港"},
                         {"n": "台湾", "v": "台湾"},
-                        {"n": "美国", "v": "美国"},
                         {"n": "韩国", "v": "韩国"},
                         {"n": "日本", "v": "日本"},
+                        {"n": "美国", "v": "美国"},
                         {"n": "泰国", "v": "泰国"}
                     ]},
                     {"key": "year", "name": "年份", "value": [
@@ -152,13 +148,10 @@ class Spider:
                 "3": [  # 综艺
                     {"key": "class", "name": "类型", "value": [
                         {"n": "全部", "v": ""},
-                        {"n": "真人秀", "v": "真人秀"},
-                        {"n": "选秀", "v": "选秀"},
-                        {"n": "情感", "v": "情感"},
-                        {"n": "访谈", "v": "访谈"},
-                        {"n": "旅游", "v": "旅游"},
-                        {"n": "美食", "v": "美食"},
-                        {"n": "游戏", "v": "游戏"}
+                        {"n": "大陆", "v": "大陆"},
+                        {"n": "港台", "v": "港台"},
+                        {"n": "日韩", "v": "日韩"},
+                        {"n": "欧美", "v": "欧美"}
                     ]},
                     {"key": "area", "name": "地区", "value": [
                         {"n": "全部", "v": ""},
@@ -181,17 +174,11 @@ class Spider:
                 "4": [  # 动漫
                     {"key": "class", "name": "类型", "value": [
                         {"n": "全部", "v": ""},
-                        {"n": "情感", "v": "情感"},
-                        {"n": "科幻", "v": "科幻"},
-                        {"n": "热血", "v": "热血"},
-                        {"n": "推理", "v": "推理"},
-                        {"n": "搞笑", "v": "搞笑"},
-                        {"n": "冒险", "v": "冒险"},
-                        {"n": "动作", "v": "动作"},
-                        {"n": "机战", "v": "机战"},
-                        {"n": "运动", "v": "运动"},
-                        {"n": "战争", "v": "战争"},
-                        {"n": "古装", "v": "古装"}
+                        {"n": "国产", "v": "国产"},
+                        {"n": "日本", "v": "日本"},
+                        {"n": "欧美", "v": "欧美"},
+                        {"n": "港台", "v": "港台"},
+                        {"n": "海外", "v": "海外"}
                     ]},
                     {"key": "area", "name": "地区", "value": [
                         {"n": "全部", "v": ""},
