@@ -549,4 +549,8 @@ class Spider(BaseSpider):
 
 # 主程序入口
 if __name__ == '__main__':
-    pass
+    # pass
+    Spider = Spider()
+    Spider.init()
+    # print(Spider._perform_category_request('2', '1', '', ''))
+    print(Spider.detailContent(['91078']))
