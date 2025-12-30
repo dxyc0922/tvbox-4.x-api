@@ -4,6 +4,8 @@ import json
 import time
 import requests
 from lxml import etree
+from com.github.catvod import Proxy # type: ignore
+from com.chaquo.python import Python # type: ignore
 from abc import abstractmethod, ABCMeta
 from importlib.machinery import SourceFileLoader
 
@@ -34,24 +36,20 @@ class Spider:
 
     def homeContent(self, filter):
         """
-        获取首页内容
+        获取首页内容 - 实际是获取分类信息
         :param filter: 过滤条件
-        :return: 首页内容数据
+        :return: 分类信息和筛选条件
         """
         try:
-            # 获取首页数据 - 使用ac=detail参数以获取完整信息
+            # 获取分类数据
             params = {
-                "ac": "detail",  # 使用detail参数获取完整信息，包括图片
+                "ac": "list",  # 使用list获取分类信息
                 "pg": "1"
             }
-            # 如果filter为True，则添加筛选参数
-            if filter:
-                # 可以根据需要添加筛选参数
-                pass
             response = self.fetch(self.api_url, params=params, headers=self.headers)
             if response.status_code != 200:
-                print(f"获取首页数据失败，状态码: {response.status_code}")
-                return {"class": [], "list": [], "filters": {}}
+                print(f"获取分类数据失败，状态码: {response.status_code}")
+                return {"class": [], "filters": {}}
             
             data = json.loads(response.text)
             
@@ -66,25 +64,6 @@ class Spider:
                             "type_name": cat["type_name"]
                         }
                         categories.append(category)
-            
-            # 提取首页视频列表
-            videos = []
-            if "list" in data and data["list"]:
-                for item in data["list"]:
-                    video = {
-                        "vod_id": str(item["vod_id"]),
-                        "vod_name": item["vod_name"],
-                        "vod_pic": item.get("vod_pic", ""),  # 现在可以从detail接口获取图片
-                        "vod_remarks": item.get("vod_remarks", ""),
-                        "vod_year": item.get("vod_year", ""),
-                        "vod_area": item.get("vod_area", ""),
-                        "vod_lang": item.get("vod_lang", ""),
-                        "vod_actor": item.get("vod_actor", ""),
-                        "vod_director": item.get("vod_director", ""),
-                        "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
-                        "type_name": item.get("type_name", "")
-                    }
-                    videos.append(video)
             
             # 定义筛选条件
             filters = {
@@ -220,18 +199,17 @@ class Spider:
             
             result = {
                 "class": categories,
-                "list": videos,
-                "filters": filters
+                "filters": filters if filter else {}  # 只有当filter为True时才返回筛选条件
             }
-            print(f"首页内容获取成功: {len(categories)} 个分类, {len(videos)} 个视频")
+            print(f"分类信息获取成功: {len(categories)} 个分类")
             return result
         except Exception as e:
-            print(f"获取首页内容失败: {str(e)}")
-            return {"class": [], "list": [], "filters": {}}
+            print(f"获取分类信息失败: {str(e)}")
+            return {"class": [], "filters": {}}
 
     def homeVideoContent(self):
         """
-        获取首页视频内容
+        获取首页视频内容 - 最新更新的视频列表
         :return: 首页视频内容数据
         """
         try:
@@ -559,12 +537,3 @@ class Spider:
             return ""
         clean = re.compile('<.*?>')
         return re.sub(clean, '', src).strip()
-    
-if __name__ == "__main__":
-    spider = Spider()
-    # print(spider.homeContent(filter=True))
-    print(spider.homeVideoContent())
-    # print(spider.categoryContent(1, 1, "", ""))
-    # print(spider.detailContent(["1"]))
-    # print(spider.playerContent("", "1", ""))
-    # print(spider.searchContent("", True))
