@@ -365,9 +365,9 @@ class Spider(BaseSpider):
             dict: 包含播放URL和播放信息的字典
         """
         # 构建播放URL（使用base64编码）
-        play_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
+        # play_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
         # 返回播放信息
-        return {'url': play_url, 'header': self.headers, 'parse': 0, 'jx': 0}
+        return {'url': id, 'header': self.headers, 'parse': 0, 'jx': 0}
 
     def localProxy(self, params):
         """
