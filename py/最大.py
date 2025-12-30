@@ -33,11 +33,6 @@ class Spider(BaseSpider):
         self.headers = {}   # HTTP请求头
         # 定义需要过滤的类型ID
         self.filted_type_ids = {55, 56, 57, 58, 59, 60, 61, 73, 74}  # 过滤类型ID
-        # 防抖相关变量
-        self.category_call_lock = threading.Lock()  # 线程锁，防止并发问题
-        self.category_debounce_timer = None         # 防抖定时器
-        self.category_last_call_params = None       # 上次调用参数
-        self.debounce_delay = 0.5                   # 防抖延迟时间（秒）
 
     def getName(self):
         """
@@ -219,29 +214,6 @@ class Spider(BaseSpider):
         # 返回视频列表
         return {'list': videos, 'page': 1, 'pagecount': 1, 'limit': len(videos), 'total': len(videos)}
 
-    def debounce_category_content(self, tid, pg, filter, ext, callback):
-        """
-        防抖装饰器函数，用于处理分类内容请求的防抖逻辑
-        """
-        with self.category_call_lock:
-            # 取消之前的定时器
-            if self.category_debounce_timer:
-                self.category_debounce_timer.cancel()
-
-            # 保存当前参数
-            self.category_last_call_params = (tid, pg, filter, ext, callback)
-
-    def _execute_category_request(self):
-        """
-        实际执行分类请求的方法
-        """
-        with self.category_call_lock:
-            if self.category_last_call_params:
-                tid, pg, filter, ext, callback = self.category_last_call_params
-                # 执行实际的分类内容请求
-                result = self._perform_category_request(tid, pg, filter, ext)
-                callback(result)
-
     def _perform_category_request(self, tid, pg, filter, ext):
         """
         执行分类内容请求的内部方法
@@ -251,7 +223,7 @@ class Spider(BaseSpider):
         if ext and 'cid' in ext:
             category_id = ext['cid']
         # 构建请求URL，使用正确的参数名
-        url = f"{self.home_url}/index.php/ajax/data?mid=1&tid={category_id}&page={pg}&limit=20"
+        url = f"{self.home_url}/index.php/ajax/data?mid=1&tid={category_id}&page={pg}&limit=10"
         videos = []  # 存储分类视频信息的列表
         try:
             # 发送请求并解析返回数据
@@ -271,11 +243,11 @@ class Spider(BaseSpider):
             # 请求失败时返回错误信息
             return {'list': [], 'msg': str(e), 'page': 0, 'pagecount': 0, 'limit': 0, 'total': 0}
         # 返回视频列表
-        return {'list': videos, 'page': int(pg), 'pagecount': 999, 'limit': 20, 'total': 999}
+        return {'list': videos, 'page': int(pg), 'pagecount': 999, 'limit': 10, 'total': 999}
 
     def categoryContent(self, tid, pg, filter, ext, callback=None):
         """
-        获取分类内容（带防抖功能）
+        获取分类内容
 
         Args:
             tid (str): 分类ID
@@ -287,12 +259,7 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含分类视频列表和分页信息的字典
         """
-        # 如果没有提供回调函数，则直接返回结果（兼容原始调用方式）
-        if callback is None:
-            return self._perform_category_request(tid, pg, filter, ext)
-        else:
-            # 使用防抖功能
-            self.debounce_category_content(tid, pg, filter, ext, callback)
+        return self._perform_category_request(tid, pg, filter, ext)
 
     def detailContent(self, did):
         """
@@ -548,5 +515,6 @@ if __name__ == '__main__':
     # pass
     Spider = Spider()
     Spider.init()
+    print(Spider.homeVideoContent())
     # print(Spider._perform_category_request('1', '1', '', ''))
-    print(Spider.detailContent(['116658']))
+    # print(Spider.detailContent(['116658']))
