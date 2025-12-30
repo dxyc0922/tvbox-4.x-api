@@ -10,8 +10,6 @@ import sys                      # 系统相关功能
 import base64 as base64_lib     # base64编码解码库
 from base.spider import Spider as BaseSpider  # 导入基础爬虫类
 from urllib import parse as urlparse_lib      # URL解析库
-import threading                # 线程库，用于实现防抖功能
-from concurrent.futures import ThreadPoolExecutor, as_completed  # 并发处理库
 
 # 添加上级目录到系统路径
 sys.path.append('..')
@@ -35,7 +33,6 @@ class Spider(BaseSpider):
         # 定义需要过滤的类型ID
         self.filted_type_ids = {19, 61, 92, 93}  # 过滤类型ID
         # 防抖相关变量
-        self.category_call_lock = threading.Lock()  # 线程锁，防止并发问题
         self.category_debounce_timer = None         # 防抖定时器
         self.category_last_call_params = None       # 上次调用参数
         self.debounce_delay = 0.5                   # 防抖延迟时间（秒）
@@ -57,7 +54,7 @@ class Spider(BaseSpider):
             extend (str): 扩展参数，默认为空字符串
         """
         self.name = '优质资源'  # 爬虫名称
-        self.home_url = 'https://yzzy.tv'  # 网站主页URL
+        self.home_url = 'https://www.myripon.com'  # 网站主页URL
         self.api_url = 'https://api.yzzy-api.com/inc/apijson.php'  # 获取视频数据API
         # 设置请求头，模拟浏览器访问
         self.headers = {
@@ -180,7 +177,7 @@ class Spider(BaseSpider):
         videos = []  # 存储视频信息的列表
         try:
             # 获取首页推荐视频数据
-            response = requests_lib.get(f"{self.api_url}?ac=detail",
+            response = requests_lib.get(f"{self.home_url}/index.php/ajax/data?mid=1",
                                         headers=self.headers)
             video_list = response.json()['list']  # 解析返回的JSON数据
             # 提取视频信息并添加到列表中，过滤掉伦理片
@@ -211,11 +208,6 @@ class Spider(BaseSpider):
             # 保存当前参数
             self.category_last_call_params = (tid, pg, filter, ext, callback)
 
-            # 设置新的定时器
-            self.category_debounce_timer = threading.Timer(
-                self.debounce_delay, self._execute_category_request)
-            self.category_debounce_timer.start()
-
     def _execute_category_request(self):
         """
         实际执行分类请求的方法
@@ -235,67 +227,14 @@ class Spider(BaseSpider):
         category_id = tid
         if ext and 'cid' in ext:
             category_id = ext['cid']
+        # 构建请求URL，使用正确的参数名
+        url = f"{self.home_url}/index.php/ajax/data?mid=1&tid={category_id}&page={pg}&limit=20"
         videos = []  # 存储分类视频信息的列表
-        video_list = []  # 存储子分类视频信息的列表
-
         try:
-            # 如果category_id为1,2,3,4，则获取该分类下的子分类视频列表合成一个video_list列表
-            if str(category_id) in ['1', '2', '3', '4']:
-                # 获取对应主分类下的所有子分类ID
-                home_content = self.homeContent('')
-                filters = home_content.get('filters', {})
-
-                if str(category_id) in filters:
-                    sub_categories = filters[str(category_id)].get('value', [])
-
-                    # 使用线程池并发处理子分类请求
-                    def fetch_sub_category(sub_cat):
-                        sub_cat_id = sub_cat.get('v')
-                        if sub_cat_id:
-                            # 构建子分类请求URL
-                            url = f"{self.api_url}?ac=detail&t={sub_cat_id}&pg={pg}"
-                            try:
-                                response = requests_lib.get(
-                                    url, headers=self.headers, timeout=10)
-                                if response.status_code == 200:
-                                    sub_data = response.json()
-                                    if 'list' in sub_data and sub_data['list']:
-                                        return sub_data['list']
-                            except Exception:
-                                # 如果请求失败，返回空列表
-                                return []
-                        return []
-
-                    # 使用线程池并发获取子分类数据
-                    max_workers = min(len(sub_categories),
-                                      10)  # 最大并发数不超过10或子分类数
-                    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                        # 提交所有任务
-                        future_to_sub = {executor.submit(fetch_sub_category, sub_cat): sub_cat
-                                         for sub_cat in sub_categories}
-
-                        # 收集结果
-                        for future in as_completed(future_to_sub):
-                            sub_videos = future.result()
-                            if sub_videos:
-                                video_list.extend(sub_videos)
-                    # 根据vod_time对所有视频进行排序（降序，最新的在前）
-                    try:
-                        video_list.sort(key=lambda x: x.get(
-                            'vod_time', ''), reverse=True)
-                    except Exception as e:
-                        print(f"排序失败: {e}")
-            else:
-                # 构建请求URL，使用正确的参数名
-                url = f"{self.api_url}?ac=detail&t={category_id}&pg={pg}"
-                response = requests_lib.get(url, headers=self.headers)
-                if response.status_code == 200:
-                    data = response.json()
-                    if 'list' in data:
-                        video_list = data['list']
-
+            # 发送请求并解析返回数据
+            response = requests_lib.get(url, headers=self.headers)
+            video_list = response.json()['list']
             # 提取视频信息并添加到列表中，过滤掉伦理片
-            print(video_list)
             for video_info in video_list:
                 # 过滤掉伦理片
                 if not self.should_filter_video(video_info):
@@ -583,7 +522,4 @@ class Spider(BaseSpider):
 
 # 主程序入口
 if __name__ == '__main__':
-    # pass
-    Spider = Spider()
-    Spider.init()
-    Spider._perform_category_request('1', '1', '', '')
+    pass
