@@ -3,11 +3,11 @@ import os
 import json
 import time
 import requests
-# from lxml import etree
-# from com.github.catvod import Proxy  # type: ignore
-# from com.chaquo.python import Python  # type: ignore
-# from abc import abstractmethod, ABCMeta
-# from importlib.machinery import SourceFileLoader
+from lxml import etree
+from com.github.catvod import Proxy  # type: ignore
+from com.chaquo.python import Python  # type: ignore
+from abc import abstractmethod, ABCMeta
+from importlib.machinery import SourceFileLoader
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -552,8 +552,7 @@ class Spider:
         :return: 包含播放URL和播放信息的字典
         """
         try:
-            return {'url': id, 'header': {
-                "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL}, 'parse': 0, 'jx': 0}
+            return {'url': id, 'header': {"User-Agent": self.USER_AGENT}, 'parse': 0, 'jx': 0}
         except Exception as e:
             print(f"获取播放内容失败: {str(e)}")
             return {"url": "", "header": {}, "parse": 0, "jx": 0}
@@ -604,9 +603,3 @@ class Spider:
             return ""
         clean = re.compile('<.*?>')
         return re.sub(clean, '', src).strip()
-
-
-if __name__ == "__main__":
-    spider = Spider()
-    spider.init()
-    print(spider.detailContent(['51818']))
