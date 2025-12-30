@@ -48,6 +48,6 @@
             "playUrl": "json:http://127.0.0.1:10079/parse/?thread=0&proxy=noproxy&url=",
             "searchable": 1,
             "changeable": 1
-        },
+        }
     ]
 }
