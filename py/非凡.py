@@ -560,10 +560,13 @@ class Spider:
                 "ids": id
             }
 
+            # 修复API URL - 直接使用API_URL，不需要再加路径
             response = self.fetch(self.API_URL, params=params, headers={
                                   "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"获取播放详情失败，状态码: {response.status_code}")
+                print(
+                    f"请求URL: {self.API_URL} , params: {params}")
                 return {"parse": 0, "playUrl": "", "url": "", "header": {}}
 
             data = json.loads(response.text)
@@ -620,10 +623,16 @@ class Spider:
                                     }
                                     print(f"播放内容获取成功: {video_url}")
                                     return result
+                else:
+                    print(f"视频属于伦理片分类，ID: {item.get('type_id')}")
+            else:
+                print(f"未找到视频详情数据: {data}")
 
             return {"parse": 0, "playUrl": "", "url": "", "header": {}}
         except Exception as e:
             print(f"获取播放内容失败: {str(e)}")
+            import traceback
+            traceback.print_exc()  # 打印详细错误信息
             return {"parse": 0, "playUrl": "", "url": "", "header": {}}
 
     def localProxy(self, param):
