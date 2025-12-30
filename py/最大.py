@@ -55,7 +55,12 @@ class Spider(BaseSpider):
         self.api_url = 'https://api.zuidapi.com/api.php/provide/vod/'  # 获取视频数据API
         # 设置请求头，模拟浏览器访问
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'}
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
+            'Referer': self.home_url,  # 添加Referer头，可能对图片防盗链有帮助
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Encoding': 'gzip, deflate',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Connection': 'keep-alive'}
 
     def getDependence(self):
         """
