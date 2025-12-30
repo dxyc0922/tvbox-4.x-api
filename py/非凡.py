@@ -21,6 +21,7 @@ class Spider:
     # 常量定义
     API_URL = "https://ffzy.tv/api.php/provide/vod/"
     SITE_URL = "https://ffzy.tv"
+    SPIDER_NAME = "非凡资源站"
     EXCLUDE_CATEGORIES = {34}  # 伦理片分类ID
     MAIN_CATEGORIES = {"1", "2", "3", "4"}  # 一级分类ID
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
@@ -33,7 +34,7 @@ class Spider:
         获取爬虫名称
         :return: 爬虫名称
         """
-        return "非凡资源站"
+        return self.SPIDER_NAME
 
     def getDependence(self):
         """
