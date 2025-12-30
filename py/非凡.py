@@ -9,6 +9,7 @@ from com.chaquo.python import Python  # type: ignore
 from abc import abstractmethod, ABCMeta
 from importlib.machinery import SourceFileLoader
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib import parse as urlparse_lib      # URL解析库
 
 
 class Spider:
@@ -533,19 +534,154 @@ class Spider:
         """
         return {'url': id, 'header': {"User-Agent": self.USER_AGENT}, 'parse': 0, 'jx': 0}
 
-    def localProxy(self, param):
+    def localProxy(self, params):
         """
-        本地代理方法
-        :param param: 代理参数
-        :return: 代理结果
+        本地代理方法，用于处理广告
+
+        Args:
+            params (dict): 代理参数
+
+        Returns:
+            list: 包含状态码、内容类型和处理后内容的列表
         """
-        pass
+        # 解码URL并删除广告
+        decoded_url = self.b64decode(params['url'])
+        cleaned_content = self.del_ads(decoded_url)
+        return [200, 'application/vnd.apple.mpegurl', cleaned_content]
 
     def destroy(self):
         """
         销毁爬虫实例，释放资源
         """
         print("非凡资源站爬虫已销毁")
+
+    def b64encode(self, data):
+        """
+        base64编码方法
+
+        Args:
+            data (str): 需要编码的数据
+
+        Returns:
+            str: base64编码后的字符串
+        """
+        return base64_lib.b64encode(data.encode('utf-8')).decode('utf-8')
+
+    def b64decode(self, data):
+        """
+        base64解码方法
+
+        Args:
+            data (str): 需要解码的数据
+
+        Returns:
+            str: base64解码后的字符串
+        """
+        return base64_lib.b64decode(data.encode('utf-8')).decode('utf-8')
+
+    def del_ads(self, url):
+        """
+        删除广告的方法
+
+        Args:
+            url (str): 视频播放URL
+
+        Returns:
+            str: 去除广告后的内容
+        """
+        # 定义协议和路径分隔符
+        protocol = 'http'
+        full_url = url
+        path_separator = '/'
+        # 发送请求获取内容
+        response = requests_lib.get(url=full_url, headers=self.headers)
+
+        if response.status_code != 200:
+            return ''
+
+        # 分割返回的内容为行
+        content_lines = response.text.splitlines()
+
+        # 检查是否为M3U8格式并处理混合内容
+        if content_lines and content_lines[0] == '#EXTM3U' and len(content_lines) > 2 and 'mixed.m3u8' in content_lines[2]:
+            redirect_url = content_lines[2]
+            if redirect_url.startswith(protocol):
+                pass  # 已是完整URL
+            elif redirect_url.startswith(path_separator):
+                redirect_url = self._build_base_url(full_url) + redirect_url
+            else:
+                redirect_url = full_url.rsplit(path_separator, maxsplit=1)[
+                    0] + path_separator + redirect_url
+            # 递归处理广告
+            return self.del_ads(redirect_url)
+        else:
+            return self._process_m3u8_content(content_lines, full_url)
+
+    def _build_base_url(self, full_url):
+        """
+        构建基础URL
+
+        Args:
+            full_url (str): 完整URL
+
+        Returns:
+            str: 基础URL
+        """
+        parsed_url = urlparse_lib.urlparse(full_url)
+        return urlparse_lib.urlunparse([parsed_url.scheme, parsed_url.netloc, '', '', '', ''])
+
+    def _process_m3u8_content(self, content_lines, original_url):
+        """
+        处理M3U8内容，移除广告
+
+        Args:
+            content_lines (list): M3U8内容行列表
+            original_url (str): 原始URL
+
+        Returns:
+            str: 处理后的内容
+        """
+        # 构建基础URL
+        base_url = original_url.rsplit('/', maxsplit=1)[0] + '/'
+        base_url_full = self._build_base_url(original_url)
+
+        processed_lines = []  # 存储处理后的行
+        discontinuity_indices = []  # 存储不连续性标记的索引
+
+        # 处理每一行内容
+        for index, line in enumerate(content_lines):
+            if '.ts' in line:
+                # 处理.ts文件路径
+                if line.startswith('http'):
+                    processed_lines.append(line)
+                elif line.startswith('/'):
+                    processed_lines.append(base_url_full + line.lstrip('/'))
+                else:
+                    processed_lines.append(base_url + line)
+            elif line == '#EXT-X-DISCONTINUITY':
+                # 记录不连续性标记的位置
+                processed_lines.append(line)
+                discontinuity_indices.append(index)
+            else:
+                processed_lines.append(line)
+
+        removal_ranges = []  # 要删除的区间
+        # 根据不连续性标记确定要删除的区间
+        if len(discontinuity_indices) >= 1:
+            removal_ranges.append(
+                (discontinuity_indices[0], discontinuity_indices[0]))
+        if len(discontinuity_indices) >= 3:
+            removal_ranges.append(
+                (discontinuity_indices[1], discontinuity_indices[2]))
+        if len(discontinuity_indices) >= 5:
+            removal_ranges.append(
+                (discontinuity_indices[3], discontinuity_indices[4]))
+
+        # 过滤掉不需要的行
+        filtered_lines = [line for index, line in enumerate(processed_lines)
+                          if not any(start <= index <= end for start, end in removal_ranges)]
+
+        return '\n'.join(filtered_lines)
 
     def fetch(self, url, params=None, cookies=None, headers=None, timeout=10, verify=True, stream=False, allow_redirects=True):
         """
