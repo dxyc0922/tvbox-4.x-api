@@ -8,39 +8,27 @@
 import requests as requests_lib  # HTTP请求库，用于发送网络请求
 import sys                      # 系统相关功能
 import base64 as base64_lib     # base64编码解码库
-from base.spider import Spider as BaseSpider  # 导入基础爬虫类
 from urllib import parse as urlparse_lib      # URL解析库
-
-# 添加上级目录到系统路径
-sys.path.append('..')
+from abc import abstractmethod, ABCMeta
 
 
-class Spider(BaseSpider):
+class Spider(metaclass=ABCMeta):
     """
     非凡资源爬虫类
-    继承自BaseSpider，实现视频资源的爬取功能
+    实现视频资源的爬取功能
     """
 
     def __init__(self):
         """
         初始化方法
         """
-        super().__init__()  # 调用父类初始化方法
         self.name = ''      # 爬虫名称
         self.home_url = ''  # 网站主页URL
         self.api_url = ''  # API接口URL
         self.headers = {}   # HTTP请求头
         # 定义需要过滤的类型ID
         self.filted_type_ids = {34}  # 34:伦理片
-
-    def getName(self):
-        """
-        获取爬虫名称
-
-        Returns:
-            str: 爬虫名称
-        """
-        return self.name
+        self.extend = ''
 
     def init(self, extend=''):
         """
@@ -189,6 +177,21 @@ class Spider(BaseSpider):
         # 返回视频列表
         return {'list': videos, 'page': 1, 'pagecount': 1, 'limit': len(videos), 'total': len(videos)}
 
+    def categoryContent(self, tid, pg, filter, extend):
+        """
+        获取分类内容
+
+        Args:
+            tid (str): 分类ID
+            pg (str): 页码
+            filter: 过滤条件
+            extend (dict): 扩展参数
+
+        Returns:
+            dict: 包含分类视频列表和分页信息的字典
+        """
+        return self._perform_category_request(tid, pg, filter, extend)
+
     def _perform_category_request(self, tid, pg, filter, ext):
         """
         执行分类内容请求的内部方法
@@ -219,22 +222,6 @@ class Spider(BaseSpider):
             return {'list': [], 'msg': str(e), 'page': 0, 'pagecount': 0, 'limit': 0, 'total': 0}
         # 返回视频列表
         return {'list': videos, 'page': int(pg), 'pagecount': 999, 'limit': 10, 'total': 999}
-
-    def categoryContent(self, tid, pg, filter, ext, callback=None):
-        """
-        获取分类内容
-
-        Args:
-            tid (str): 分类ID
-            pg (str): 页码
-            filter: 过滤条件
-            ext (dict): 扩展参数
-            callback: 回调函数，用于返回结果
-
-        Returns:
-            dict: 包含分类视频列表和分页信息的字典
-        """
-        return self._perform_category_request(tid, pg, filter, ext)
 
     def detailContent(self, did):
         """
@@ -319,7 +306,7 @@ class Spider(BaseSpider):
         try:
             # 发送搜索请求
             response = requests_lib.get(
-                f"{self.api_url}/api.php/provide/vod?ac=detail&wd={search_key}",
+                f"{self.api_url}/api/provide/vod?ac=detail&wd={search_key}",
                 headers=self.headers)
             video_list = response.json()['list']  # 解析返回数据
             # 提取搜索结果并添加到列表中，过滤掉伦理片
@@ -378,6 +365,15 @@ class Spider(BaseSpider):
             str: 销毁状态信息
         """
         return '正在Destroy'
+
+    def getName(self):
+        """
+        获取爬虫名称
+
+        Returns:
+            str: 爬虫名称
+        """
+        return self.name
 
     def b64encode(self, data):
         """
@@ -507,11 +503,26 @@ class Spider(BaseSpider):
 
         return '\n'.join(filtered_lines)
 
+    def liveContent(self, url):
+        """
+        获取直播内容（未实现）
 
-# 主程序入口
-if __name__ == '__main__':
-    # pass
-    Spider = Spider()
-    Spider.init()
-    # print(Spider._perform_category_request('2', '1', '', ''))
-    print(Spider.detailContent(['91078']))
+        Args:
+            url: 直播URL
+
+        Returns:
+            dict: 直播内容
+        """
+        pass
+
+    def action(self, action):
+        """
+        执行操作（未实现）
+
+        Args:
+            action: 操作
+
+        Returns:
+            dict: 操作结果
+        """
+        pass
