@@ -14,12 +14,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 class Spider:
     """
     非凡资源站爬虫实现
-    API接口: https://ffzy.tv/api.php/provide/vod/
+    API接口: hhttp://api.ffzyapi.com/api.php/provide/vod/
     支持首页、分类、搜索、详情和播放功能
     """
 
     # 常量定义
-    API_URL = "https://ffzy.tv/api.php/provide/vod/"
+    API_URL = "http://api.ffzyapi.com/api.php/provide/vod/"
     SITE_URL = "https://ffzy.tv"
     SPIDER_NAME = "非凡资源站"
     EXCLUDE_CATEGORIES = {34}  # 伦理片分类ID
