@@ -534,11 +534,11 @@ class Spider:
 
         # 分割播放源
         sources = play_from.split("$$$")
-        # 过滤掉名称为feifan的播放源
+        # 过滤掉包含feifan的播放源（不区分大小写）
         filtered_sources = [
-            source for source in sources if source.lower() != "feifan"]
+            source for source in sources if 'feifan' not in source.lower()]
         # 重新组合
-        return "$$$".join(filtered_sources)
+        return "$$$".join(filtered_sources) if filtered_sources else play_from
 
     def playerContent(self, flag, id, vipFlags):
         """
@@ -569,7 +569,8 @@ class Spider:
                 item = data["list"][0]
                 # 过滤掉伦理片分类的视频
                 if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
-                    play_from = self._filter_play_from(item.get("vod_play_from", ""))
+                    play_from = self._filter_play_from(
+                        item.get("vod_play_from", ""))
                     play_url = item.get("vod_play_url", "")
 
                     # 解析播放源
@@ -583,10 +584,22 @@ class Spider:
                             play_url_str = url_list[i]
                             break
 
+                    # 如果没有找到过滤后的播放源，尝试在原始播放源中查找
+                    if not play_url_str:
+                        original_from_list = item.get(
+                            "vod_play_from", "").split("$$$")
+                        original_url_list = item.get(
+                            "vod_play_url", "").split("$$$")
+                        for i, source in enumerate(original_from_list):
+                            if source == flag and i < len(original_url_list):
+                                play_url_str = original_url_list[i]
+                                break
+
                     # 解析播放地址
                     if play_url_str:
                         # 解析播放地址列表，格式为 "第1集$地址#第2集$地址"
                         episodes = play_url_str.split("#")
+                        # 这里我们假设要播放第一个可用的集数，实际应用中可能需要根据具体需求处理
                         for episode in episodes:
                             parts = episode.split("$")
                             if len(parts) >= 2:
