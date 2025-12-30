@@ -3,11 +3,11 @@ import os
 import json
 import time
 import requests
-from lxml import etree
-from com.github.catvod import Proxy  # type: ignore
-from com.chaquo.python import Python  # type: ignore
-from abc import abstractmethod, ABCMeta
-from importlib.machinery import SourceFileLoader
+# from lxml import etree
+# from com.github.catvod import Proxy  # type: ignore
+# from com.chaquo.python import Python  # type: ignore
+# from abc import abstractmethod, ABCMeta
+# from importlib.machinery import SourceFileLoader
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -438,6 +438,9 @@ class Spider:
                 for item in data["list"]:
                     # 过滤掉伦理片分类的视频
                     if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
+                        # 过滤掉feifan播放源
+                        vod_play_from = self._filter_play_from(
+                            item.get("vod_play_from", ""))
                         detail = {
                             "vod_id": str(item["vod_id"]),
                             "vod_name": item["vod_name"],
@@ -449,7 +452,7 @@ class Spider:
                             "vod_actor": item.get("vod_actor", ""),
                             "vod_director": item.get("vod_director", ""),
                             "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
-                            "vod_play_from": item.get("vod_play_from", ""),
+                            "vod_play_from": vod_play_from,  # 使用过滤后的播放源
                             "vod_play_url": item.get("vod_play_url", ""),
                             "vod_lang": item.get("vod_lang", ""),
                             "vod_class": item.get("vod_class", ""),
@@ -525,7 +528,7 @@ class Spider:
 
     def _filter_play_from(self, play_from):
         """
-        过滤播放源，移除名称为feifan的播放源
+        过滤播放源，移除包含feifan的播放源
         :param play_from: 原始播放源字符串
         :return: 过滤后的播放源字符串
         """
@@ -537,7 +540,7 @@ class Spider:
         # 过滤掉包含feifan的播放源（不区分大小写）
         filtered_sources = [
             source for source in sources if 'feifan' not in source.lower()]
-        # 重新组合
+        # 重新组合，如果过滤后为空则返回原值
         return "$$$".join(filtered_sources) if filtered_sources else play_from
 
     def playerContent(self, flag, id, vipFlags):
@@ -569,8 +572,7 @@ class Spider:
                 item = data["list"][0]
                 # 过滤掉伦理片分类的视频
                 if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
-                    play_from = self._filter_play_from(
-                        item.get("vod_play_from", ""))
+                    play_from = item.get("vod_play_from", "")  # 直接使用已经过滤的播放源
                     play_url = item.get("vod_play_url", "")
 
                     # 解析播放源
@@ -584,26 +586,14 @@ class Spider:
                             play_url_str = url_list[i]
                             break
 
-                    # 如果没有找到过滤后的播放源，尝试在原始播放源中查找
-                    if not play_url_str:
-                        original_from_list = item.get(
-                            "vod_play_from", "").split("$$$")
-                        original_url_list = item.get(
-                            "vod_play_url", "").split("$$$")
-                        for i, source in enumerate(original_from_list):
-                            if source == flag and i < len(original_url_list):
-                                play_url_str = original_url_list[i]
-                                break
-
                     # 解析播放地址
                     if play_url_str:
                         # 解析播放地址列表，格式为 "第1集$地址#第2集$地址"
                         episodes = play_url_str.split("#")
-                        # 这里我们假设要播放第一个可用的集数，实际应用中可能需要根据具体需求处理
+                        # 获取第一个播放地址作为默认播放地址
                         for episode in episodes:
                             parts = episode.split("$")
                             if len(parts) >= 2:
-                                # 这里我们返回第一个可用的播放地址
                                 video_url = parts[1]
                                 if video_url.startswith("http"):
                                     result = {
@@ -669,3 +659,9 @@ class Spider:
             return ""
         clean = re.compile('<.*?>')
         return re.sub(clean, '', src).strip()
+
+
+if __name__ == "__main__":
+    spider = Spider()
+    spider.init()
+    print(spider.detailContent(['51818']))
