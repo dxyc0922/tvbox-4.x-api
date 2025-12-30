@@ -549,69 +549,15 @@ class Spider:
         :param flag: 播放标识
         :param id: 内容ID
         :param vipFlags: VIP标识列表
-        :return: 播放内容数据
+        :return: 包含播放URL和播放信息的字典
         """
         try:
             print(f"正在获取播放内容，标识: {flag}, ID: {id}")
 
-            # 获取视频详情以获取播放地址
-            params = {
-                "ac": "detail",
-                "ids": id
-            }
-
-            response = self.fetch(self.API_URL, params=params, headers={
-                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
-            if response.status_code != 200:
-                print(f"获取播放详情失败，状态码: {response.status_code}")
-                return {"parse": 0, "playUrl": "", "url": "", "header": {}}
-
-            data = json.loads(response.text)
-
-            if "list" in data and data["list"]:
-                item = data["list"][0]
-                # 过滤掉伦理片分类的视频
-                if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
-                    play_from = item.get("vod_play_from", "")  # 直接使用已经过滤的播放源
-                    play_url = item.get("vod_play_url", "")
-
-                    # 解析播放源
-                    from_list = play_from.split("$$$")
-                    url_list = play_url.split("$$$")
-
-                    # 找到对应的播放源
-                    play_url_str = ""
-                    for i, source in enumerate(from_list):
-                        if source == flag and i < len(url_list):
-                            play_url_str = url_list[i]
-                            break
-
-                    # 解析播放地址
-                    if play_url_str:
-                        # 解析播放地址列表，格式为 "第1集$地址#第2集$地址"
-                        episodes = play_url_str.split("#")
-                        # 获取第一个播放地址作为默认播放地址
-                        for episode in episodes:
-                            parts = episode.split("$")
-                            if len(parts) >= 2:
-                                video_url = parts[1]
-                                if video_url.startswith("http"):
-                                    result = {
-                                        "parse": 0,  # 0表示直接播放
-                                        "playUrl": "",
-                                        "url": video_url,
-                                        "header": {
-                                            "User-Agent": self.USER_AGENT,
-                                            "Referer": self.SITE_URL
-                                        }
-                                    }
-                                    print(f"播放内容获取成功: {video_url}")
-                                    return result
-
-            return {"parse": 0, "playUrl": "", "url": "", "header": {}}
+            return {'url': id, 'header': {self.USER_AGENT}, 'parse': 0, 'jx': 0}
         except Exception as e:
             print(f"获取播放内容失败: {str(e)}")
-            return {"parse": 0, "playUrl": "", "url": "", "header": {}}
+            return {"url": "", "header": {}, "parse": 0, "jx": 0}
 
     def localProxy(self, param):
         """
