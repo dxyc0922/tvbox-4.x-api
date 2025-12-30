@@ -5,7 +5,6 @@
 # @file    : 优质.py
 
 # 导入必要的库
-import threading
 import requests as requests_lib  # HTTP请求库，用于发送网络请求
 import sys                      # 系统相关功能
 import base64 as base64_lib     # base64编码解码库

@@ -5,7 +5,6 @@
 # @file    : 最大.py
 
 # 导入必要的库
-import threading
 import requests as requests_lib  # HTTP请求库，用于发送网络请求
 import sys                      # 系统相关功能
 import base64 as base64_lib     # base64编码解码库
@@ -55,7 +54,7 @@ class Spider(BaseSpider):
         self.api_url = 'https://api.zuidapi.com/api.php/provide/vod/'  # 获取视频数据API
         # 设置请求头，模拟浏览器访问
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'}
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0'}
 
     def getDependence(self):
         """
@@ -205,8 +204,7 @@ class Spider(BaseSpider):
                     videos.append({
                         'vod_id': video_info['vod_id'],  # 视频ID
                         'vod_name': video_info['vod_name'],  # 视频名称
-                        # 视频图片
-                        'vod_pic': self.get_proxy_url_for_image(video_info['vod_pic']),
+                        'vod_pic': video_info['vod_pic'],  # 视频图片
                         'vod_remarks': video_info['vod_remarks']   # 视频备注
                     })
         except requests_lib.RequestException as e:
@@ -245,38 +243,6 @@ class Spider(BaseSpider):
             return {'list': [], 'msg': str(e), 'page': 0, 'pagecount': 0, 'limit': 0, 'total': 0}
         # 返回视频列表
         return {'list': videos, 'page': int(pg), 'pagecount': 999, 'limit': 10, 'total': 999}
-
-    def get_proxy_url_for_image(self, img_url):
-        """
-        为图片URL生成代理URL，用于绕过防盗链
-
-        Args:
-            img_url (str): 原始图片URL
-
-        Returns:
-            str: 代理图片URL
-        """
-        # 使用base64编码图片URL，通过本地代理访问
-        encoded_url = self.b64encode(img_url)
-        # 构造代理URL，使用localProxy方法处理图片请求
-        # 注意：TVBox中代理URL的格式可能需要根据实际情况调整
-        return f'proxy?do=py&type=pic&url={encoded_url}'
-
-    def get_proxy_url_for_image(self, img_url):
-        """
-        为图片URL生成代理URL，用于绕过防盗链
-
-        Args:
-            img_url (str): 原始图片URL
-
-        Returns:
-            str: 代理图片URL
-        """
-        # 使用base64编码图片URL，通过本地代理访问
-        encoded_url = self.b64encode(img_url)
-        # 构造代理URL，使用localProxy方法处理图片请求
-        # 注意：TVBox中代理URL的格式可能需要根据实际情况调整
-        return f'proxy?do=py&type=pic&url={encoded_url}'
 
     def categoryContent(self, tid, pg, filter, ext, callback=None):
         """
@@ -400,17 +366,6 @@ class Spider(BaseSpider):
         Returns:
             list: 包含状态码、内容类型和处理后内容的列表
         """
-        # 检查是否为图片请求
-        if params.get('type') == 'pic':
-            # 处理图片请求
-            img_url = self.b64decode(params['url'])
-            response = requests_lib.get(img_url, headers=self.headers)
-            if response.status_code == 200:
-                return [200, response.headers.get('Content-Type', 'image/jpeg'), response.content]
-            else:
-                # 如果请求失败，返回默认图片或错误
-                return [404, 'image/jpeg', b'']
-
         # 解码URL并删除广告
         decoded_url = self.b64decode(params['url'])
         cleaned_content = self.del_ads(decoded_url)

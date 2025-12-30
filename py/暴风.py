@@ -10,7 +10,6 @@ import sys                      # 系统相关功能
 import base64 as base64_lib     # base64编码解码库
 from base.spider import Spider as BaseSpider  # 导入基础爬虫类
 from urllib import parse as urlparse_lib      # URL解析库
-import threading                # 线程库，用于实现防抖功能
 
 # 添加上级目录到系统路径
 sys.path.append('..')
