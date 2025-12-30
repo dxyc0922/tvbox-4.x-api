@@ -4,8 +4,6 @@ import json
 import time
 import requests
 from lxml import etree
-from com.github.catvod import Proxy # type: ignore
-from com.chaquo.python import Python # type: ignore
 from abc import abstractmethod, ABCMeta
 from importlib.machinery import SourceFileLoader
 
@@ -561,3 +559,12 @@ class Spider:
             return ""
         clean = re.compile('<.*?>')
         return re.sub(clean, '', src).strip()
+    
+if __name__ == "__main__":
+    spider = Spider()
+    # print(spider.homeContent(filter=True))
+    print(spider.homeVideoContent())
+    # print(spider.categoryContent(1, 1, "", ""))
+    # print(spider.detailContent(["1"]))
+    # print(spider.playerContent("", "1", ""))
+    # print(spider.searchContent("", True))
