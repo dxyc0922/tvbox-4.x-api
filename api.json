@@ -39,6 +39,15 @@
             "quickSearch": 1,
             "filterable": 1,
             "changeable": 1
-        }
+        },
+        {
+            "key": "最大2",
+            "name": "最大2",
+            "type": 1,
+            "api": "http://127.0.0.1:10079/p/0/noproxy/https://api.zuidapi.com/api.php/provide/vod?",
+            "playUrl": "json:http://127.0.0.1:10079/parse/?thread=0&proxy=noproxy&url=",
+            "searchable": 1,
+            "changeable": 1
+        },
     ]
 }
