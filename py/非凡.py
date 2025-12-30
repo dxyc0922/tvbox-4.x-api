@@ -552,9 +552,8 @@ class Spider:
         :return: 包含播放URL和播放信息的字典
         """
         try:
-            print(f"正在获取播放内容，标识: {flag}, ID: {id}")
-
-            return {'url': id, 'header': {self.USER_AGENT}, 'parse': 0, 'jx': 0}
+            return {'url': id, 'header': {
+                "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL}, 'parse': 0, 'jx': 0}
         except Exception as e:
             print(f"获取播放内容失败: {str(e)}")
             return {"url": "", "header": {}, "parse": 0, "jx": 0}
