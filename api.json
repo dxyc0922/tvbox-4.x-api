@@ -39,6 +39,16 @@
             "quickSearch": 1,
             "filterable": 1,
             "changeable": 1
+        },
+        {
+            "key": "最大",
+            "name": "最大",
+            "type": 3,
+            "api": "./py/最大.py",
+            "searchable": 1,
+            "quickSearch": 1,
+            "filterable": 1,
+            "changeable": 1
         }
     ],
     "doh": [
