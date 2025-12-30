@@ -4,8 +4,8 @@ import json
 import time
 import requests
 from lxml import etree
-from com.github.catvod import Proxy # type: ignore
-from com.chaquo.python import Python # type: ignore
+from com.github.catvod import Proxy  # type: ignore
+from com.chaquo.python import Python  # type: ignore
 from abc import abstractmethod, ABCMeta
 from importlib.machinery import SourceFileLoader
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,14 +17,14 @@ class Spider:
     API接口: https://ffzy.tv/api.php/provide/vod/
     支持首页、分类、搜索、详情和播放功能
     """
-    
+
     # 常量定义
     API_URL = "https://ffzy.tv/api.php/provide/vod/"
     SITE_URL = "https://ffzy.tv"
     EXCLUDE_CATEGORIES = {34}  # 伦理片分类ID
     MAIN_CATEGORIES = {"1", "2", "3", "4"}  # 一级分类ID
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    
+
     def __init__(self):
         self.extend = ""
 
@@ -62,13 +62,14 @@ class Spider:
                 "ac": "list",  # 使用list获取分类信息
                 "pg": "1"
             }
-            response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers={
+                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"获取分类数据失败，状态码: {response.status_code}")
                 return {"class": [], "filters": {}}
-            
+
             data = json.loads(response.text)
-            
+
             # 提取分类信息 - 只获取一级分类（type_pid为0），过滤掉伦理片分类
             categories = []
             if "class" in data and data["class"]:
@@ -80,30 +81,31 @@ class Spider:
                             "type_name": cat["type_name"]
                         }
                         categories.append(category)
-            
+
             # 根据API返回的分类数据动态构建筛选条件，过滤掉伦理片
             sub_categories = {}
             if "class" in data and data["class"]:
                 for cat in data["class"]:
                     type_pid = cat.get("type_pid", 0)
-                    if type_pid in [1, 2, 3, 4] and cat.get("type_id") not in self.EXCLUDE_CATEGORIES:  # 过滤掉伦理片分类
+                    # 过滤掉伦理片分类
+                    if type_pid in [1, 2, 3, 4] and cat.get("type_id") not in self.EXCLUDE_CATEGORIES:
                         if str(type_pid) not in sub_categories:
                             sub_categories[str(type_pid)] = []
                         sub_categories[str(type_pid)].append({
                             "n": cat["type_name"],
                             "v": str(cat["type_id"])
                         })
-            
+
             # 定义筛选条件 - 根据一级分类构建二级分类筛选，并从API数据中提取年份等信息
             filters = {}
-            
+
             # 动态生成年份筛选选项（从API返回的数据中提取年份信息）
             current_year = int(time.strftime("%Y"))
             year_range = range(current_year, 2000 - 1, -1)  # 从当前年份到2000年
             year_options = [{"n": "全部", "v": ""}]
             for year in year_range:
                 year_options.append({"n": str(year), "v": str(year)})
-            
+
             # 电影片筛选
             if "1" in sub_categories:
                 filters["1"] = [
@@ -123,7 +125,7 @@ class Spider:
                     ]},
                     {"key": "year", "name": "年份", "value": year_options}
                 ]
-            
+
             # 连续剧筛选
             if "2" in sub_categories:
                 filters["2"] = [
@@ -133,7 +135,7 @@ class Spider:
                     ]},
                     {"key": "year", "name": "年份", "value": year_options}
                 ]
-            
+
             # 综艺片筛选
             if "3" in sub_categories:
                 filters["3"] = [
@@ -143,7 +145,7 @@ class Spider:
                     ]},
                     {"key": "year", "name": "年份", "value": year_options}
                 ]
-            
+
             # 动漫片筛选
             if "4" in sub_categories:
                 filters["4"] = [
@@ -153,7 +155,7 @@ class Spider:
                     ]},
                     {"key": "year", "name": "年份", "value": year_options}
                 ]
-            
+
             result = {
                 "class": categories,
                 "filters": filters if filter else {}  # 只有当filter为True时才返回筛选条件
@@ -176,14 +178,15 @@ class Spider:
                 "pg": "1",
                 "h": "24"  # 获取24小时内更新的内容
             }
-            response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers={
+                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"获取首页视频数据失败，状态码: {response.status_code}")
                 return {"list": []}
-            
+
             data = json.loads(response.text)
             videos = []
-            
+
             if "list" in data and data["list"]:
                 for item in data["list"]:
                     # 过滤掉伦理片分类的视频
@@ -191,7 +194,8 @@ class Spider:
                         video = {
                             "vod_id": str(item["vod_id"]),
                             "vod_name": item["vod_name"],
-                            "vod_pic": item.get("vod_pic", ""),  # 现在可以从detail接口获取图片
+                            # 现在可以从detail接口获取图片
+                            "vod_pic": item.get("vod_pic", ""),
                             "vod_remarks": item.get("vod_remarks", ""),
                             "vod_year": item.get("vod_year", ""),
                             "vod_area": item.get("vod_area", ""),
@@ -202,7 +206,7 @@ class Spider:
                             "type_name": item.get("type_name", "")
                         }
                         videos.append(video)
-            
+
             result = {"list": videos}
             print(f"首页视频内容获取成功: {len(videos)} 个视频")
             return result
@@ -221,7 +225,7 @@ class Spider:
         """
         try:
             print(f"正在获取分类 {tid} 第 {pg} 页内容...")
-            
+
             # 如果是一级分类（tid为1,2,3,4），则并发获取其子分类数据
             if tid in self.MAIN_CATEGORIES:
                 return self._getMergedCategoryContent(tid, pg, extend)
@@ -232,21 +236,22 @@ class Spider:
                     "t": tid,        # 分类ID
                     "pg": pg         # 页码
                 }
-                
+
                 # 添加其他筛选参数（除了class，因为class已经被用作分类ID）
                 if extend:
                     for key, value in extend.items():
                         if key != "class" and value:  # 避免重复添加class参数，只添加非空的筛选参数
                             params[key] = value
-                
-                response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+
+                response = self.fetch(self.API_URL, params=params, headers={
+                                      "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
                 if response.status_code != 200:
                     print(f"获取分类数据失败，状态码: {response.status_code}")
                     return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
-                
+
                 data = json.loads(response.text)
                 videos = []
-                
+
                 if "list" in data and data["list"]:
                     for item in data["list"]:
                         # 过滤掉伦理片分类的视频
@@ -254,7 +259,8 @@ class Spider:
                             video = {
                                 "vod_id": str(item["vod_id"]),
                                 "vod_name": item["vod_name"],
-                                "vod_pic": item.get("vod_pic", ""),  # 现在可以从detail接口获取图片
+                                # 现在可以从detail接口获取图片
+                                "vod_pic": item.get("vod_pic", ""),
                                 "vod_remarks": item.get("vod_remarks", ""),
                                 "vod_year": item.get("vod_year", ""),
                                 "vod_area": item.get("vod_area", ""),
@@ -265,7 +271,7 @@ class Spider:
                                 "type_name": item.get("type_name", "")
                             }
                             videos.append(video)
-                
+
                 result = {
                     "list": videos,
                     "page": int(data.get("page", 1)),
@@ -293,42 +299,43 @@ class Spider:
                 "ac": "list",  # 使用list获取分类信息
                 "pg": "1"
             }
-            response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers={
+                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"获取分类数据失败，状态码: {response.status_code}")
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
-            
+
             data = json.loads(response.text)
-            
+
             # 获取该一级分类下的所有子分类
             sub_categories = []
             if "class" in data and data["class"]:
                 for cat in data["class"]:
                     if str(cat.get("type_pid", 0)) == tid and cat.get("type_id") not in self.EXCLUDE_CATEGORIES:  # 过滤掉伦理片
                         sub_categories.append(str(cat["type_id"]))
-            
+
             # 并发获取所有子分类的视频数据
             all_videos = []
             with ThreadPoolExecutor(max_workers=4) as executor:
                 # 提交所有子分类的请求
                 future_to_cat = {
-                    executor.submit(self._getSubCategoryVideos, cat_id, 1, extend): cat_id 
+                    executor.submit(self._getSubCategoryVideos, cat_id, 1, extend): cat_id
                     for cat_id in sub_categories
                 }
-                
+
                 # 收集结果
                 for future in as_completed(future_to_cat):
                     cat_videos = future.result()
                     all_videos.extend(cat_videos)
-            
+
             # 按更新时间排序（取最新的视频在前）
             all_videos.sort(key=lambda x: x.get("vod_time", ""), reverse=True)
-            
+
             # 模拟分页
             start_idx = (int(pg) - 1) * 20
             end_idx = start_idx + 20
             paged_videos = all_videos[start_idx:end_idx]
-            
+
             result = {
                 "list": paged_videos,
                 "page": int(pg),
@@ -336,7 +343,8 @@ class Spider:
                 "limit": 20,
                 "total": len(all_videos)
             }
-            print(f"合并分类内容获取成功: {len(paged_videos)} 个视频, 总计 {result['total']} 个")
+            print(
+                f"合并分类内容获取成功: {len(paged_videos)} 个视频, 总计 {result['total']} 个")
             return result
         except Exception as e:
             print(f"获取合并分类内容失败: {str(e)}")
@@ -356,21 +364,22 @@ class Spider:
                 "t": cat_id,
                 "pg": pg
             }
-            
+
             # 添加其他筛选参数
             if extend:
                 for key, value in extend.items():
                     if key != "class" and value:  # 避免重复添加class参数，只添加非空的筛选参数
                         params[key] = value
-            
-            response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+
+            response = self.fetch(self.API_URL, params=params, headers={
+                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"获取子分类数据失败，状态码: {response.status_code}")
                 return []
-            
+
             data = json.loads(response.text)
             videos = []
-            
+
             if "list" in data and data["list"]:
                 for item in data["list"]:
                     # 过滤掉伦理片分类的视频
@@ -390,7 +399,7 @@ class Spider:
                             "vod_time": item.get("vod_time", "")  # 用于排序
                         }
                         videos.append(video)
-            
+
             return videos
         except Exception as e:
             print(f"获取子分类视频失败: {str(e)}")
@@ -404,25 +413,26 @@ class Spider:
         """
         try:
             print(f"正在获取详情内容，ID: {ids}")
-            
+
             if not ids:
                 return {"list": []}
-            
+
             # 获取详情信息 - 支持批量获取
             ids_str = ','.join(ids)
             params = {
                 "ac": "detail",
                 "ids": ids_str
             }
-            
-            response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+
+            response = self.fetch(self.API_URL, params=params, headers={
+                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"获取详情数据失败，状态码: {response.status_code}")
                 return {"list": []}
-            
+
             data = json.loads(response.text)
             details = []
-            
+
             if "list" in data and data["list"]:
                 for item in data["list"]:
                     # 过滤掉伦理片分类的视频
@@ -445,7 +455,7 @@ class Spider:
                             "vod_pubdate": item.get("vod_pubdate", "")
                         }
                         details.append(detail)
-            
+
             result = {"list": details}
             print(f"详情内容获取成功: {len(details)} 个详情")
             return result
@@ -463,22 +473,23 @@ class Spider:
         """
         try:
             print(f"正在搜索: {key}, 页码: {pg}")
-            
+
             # 搜索接口使用 ac=detail 参数
             params = {
                 "ac": "detail",
                 "wd": key,
                 "pg": pg
             }
-            
-            response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+
+            response = self.fetch(self.API_URL, params=params, headers={
+                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"搜索数据失败，状态码: {response.status_code}")
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
-            
+
             data = json.loads(response.text)
             videos = []
-            
+
             if "list" in data and data["list"]:
                 for item in data["list"]:
                     # 过滤掉伦理片分类的视频
@@ -497,7 +508,7 @@ class Spider:
                             "type_name": item.get("type_name", "")
                         }
                         videos.append(video)
-            
+
             result = {
                 "list": videos,
                 "page": int(data.get("page", 1)),
@@ -511,6 +522,23 @@ class Spider:
             print(f"搜索失败: {str(e)}")
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
+    def _filter_play_from(self, play_from):
+        """
+        过滤播放源，移除名称为feifan的播放源
+        :param play_from: 原始播放源字符串
+        :return: 过滤后的播放源字符串
+        """
+        if not play_from:
+            return play_from
+
+        # 分割播放源
+        sources = play_from.split("$$$")
+        # 过滤掉名称为feifan的播放源
+        filtered_sources = [
+            source for source in sources if source.lower() != "feifan"]
+        # 重新组合
+        return "$$$".join(filtered_sources)
+
     def playerContent(self, flag, id, vipFlags):
         """
         获取播放内容
@@ -521,38 +549,39 @@ class Spider:
         """
         try:
             print(f"正在获取播放内容，标识: {flag}, ID: {id}")
-            
+
             # 获取视频详情以获取播放地址
             params = {
                 "ac": "detail",
                 "ids": id
             }
-            
-            response = self.fetch(self.API_URL, params=params, headers={"User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+
+            response = self.fetch(self.API_URL, params=params, headers={
+                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
             if response.status_code != 200:
                 print(f"获取播放详情失败，状态码: {response.status_code}")
                 return {"parse": 0, "playUrl": "", "url": "", "header": {}}
-            
+
             data = json.loads(response.text)
-            
+
             if "list" in data and data["list"]:
                 item = data["list"][0]
                 # 过滤掉伦理片分类的视频
                 if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
-                    play_from = item.get("vod_play_from", "")
+                    play_from = self._filter_play_from(item.get("vod_play_from", ""))
                     play_url = item.get("vod_play_url", "")
-                    
+
                     # 解析播放源
                     from_list = play_from.split("$$$")
                     url_list = play_url.split("$$$")
-                    
+
                     # 找到对应的播放源
                     play_url_str = ""
                     for i, source in enumerate(from_list):
                         if source == flag and i < len(url_list):
                             play_url_str = url_list[i]
                             break
-                    
+
                     # 解析播放地址
                     if play_url_str:
                         # 解析播放地址列表，格式为 "第1集$地址#第2集$地址"
@@ -574,7 +603,7 @@ class Spider:
                                     }
                                     print(f"播放内容获取成功: {video_url}")
                                     return result
-            
+
             return {"parse": 0, "playUrl": "", "url": "", "header": {}}
         except Exception as e:
             print(f"获取播放内容失败: {str(e)}")
@@ -608,7 +637,8 @@ class Spider:
         :return: 响应对象
         """
         try:
-            rsp = requests.get(url, params=params, cookies=cookies, headers=headers, timeout=timeout, verify=verify, stream=stream, allow_redirects=allow_redirects)
+            rsp = requests.get(url, params=params, cookies=cookies, headers=headers,
+                               timeout=timeout, verify=verify, stream=stream, allow_redirects=allow_redirects)
             rsp.encoding = 'utf-8'
             return rsp
         except Exception as e:
