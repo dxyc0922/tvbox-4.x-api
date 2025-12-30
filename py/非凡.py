@@ -572,7 +572,8 @@ class Spider:
                 item = data["list"][0]
                 # 过滤掉伦理片分类的视频
                 if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
-                    play_from = item.get("vod_play_from", "")
+                    play_from = self._filter_play_from(
+                        item.get("vod_play_from", ""))
                     play_url = item.get("vod_play_url", "")
 
                     # 解析播放源
@@ -585,6 +586,17 @@ class Spider:
                         if source == flag and i < len(url_list):
                             play_url_str = url_list[i]
                             break
+
+                    # 如果没有找到过滤后的播放源，尝试在原始播放源中查找
+                    if not play_url_str:
+                        original_from_list = item.get(
+                            "vod_play_from", "").split("$$$")
+                        original_url_list = item.get(
+                            "vod_play_url", "").split("$$$")
+                        for i, source in enumerate(original_from_list):
+                            if source == flag and i < len(original_url_list):
+                                play_url_str = original_url_list[i]
+                                break
 
                     # 解析播放地址
                     if play_url_str:
