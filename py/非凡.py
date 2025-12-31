@@ -132,6 +132,13 @@ class Spider(BaseSpider):
                     sub_categories_map[pid_str] = []
                 sub_categories_map[pid_str].append({"n": cat["type_name"], "v": str(type_id)})
 
+        # 添加调试日志
+        self.log(f"获取分类成功: {len(primary_categories)} 个一级分类")
+        for cat in primary_categories:
+            cat_id = cat["type_id"]
+            if cat_id in sub_categories_map:
+                self.log(f"分类 {cat['type_name']}({cat_id}) 有 {len(sub_categories_map[cat_id])} 个子分类")
+        
         # 缓存结果
         self.CATEGORY_CACHE = (primary_categories, sub_categories_map)
         return primary_categories, sub_categories_map
