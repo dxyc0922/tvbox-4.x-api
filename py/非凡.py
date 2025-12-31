@@ -438,6 +438,28 @@ class Spider:
                 for item in data["list"]:
                     # 过滤掉伦理片分类的视频
                     if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
+                        # 实现播放源过滤逻辑
+                        play_from = item.get("vod_play_from", "")
+                        play_url = item.get("vod_play_url", "")
+
+                        # 分割播放源和播放地址
+                        from_list = play_from.split("$$$")
+                        url_list = play_url.split("$$$")
+
+                        # 过滤掉feifan播放源
+                        filtered_from_list = []
+                        filtered_url_list = []
+
+                        for i, source in enumerate(from_list):
+                            if i < len(url_list):
+                                # 检查播放源是否包含feifan（不区分大小写）
+                                if 'feifan' not in source.lower():
+                                    filtered_from_list.append(source)
+                                    filtered_url_list.append(url_list[i])
+
+                        # 重新组合过滤后的播放源和播放地址
+                        filtered_play_from = "$$$".join(filtered_from_list)
+                        filtered_play_url = "$$$".join(filtered_url_list)
                         detail = {
                             "vod_id": str(item["vod_id"]),
                             "vod_name": item["vod_name"],
@@ -449,8 +471,8 @@ class Spider:
                             "vod_actor": item.get("vod_actor", ""),
                             "vod_director": item.get("vod_director", ""),
                             "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
-                            "vod_play_from": item.get("vod_play_from", ""), 
-                            "vod_play_url": item.get("vod_play_url", ""),
+                            "vod_play_from": filtered_play_from,  # 使用过滤后的播放源
+                            "vod_play_url": filtered_play_url,    # 使用过滤后的播放地址
                             "vod_lang": item.get("vod_lang", ""),
                             "vod_class": item.get("vod_class", ""),
                             "vod_pubdate": item.get("vod_pubdate", "")
@@ -584,4 +606,4 @@ class Spider:
 if __name__ == "__main__":
     spider = Spider()
     spider.init()
-    print(spider.detailContent(['51818']))
+    spider.detailContent(['51818'])
