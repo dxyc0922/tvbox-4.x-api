@@ -144,7 +144,7 @@ class Spider(BaseSpider):
         for main_cat_id in sub_categories:
             # 为每个有子分类的主分类添加筛选项
             filters[main_cat_id] = [
-                {"key": "class", "name": "类型", "value": [
+                {"key": "type_id", "name": "类型", "value": [  # 修改为使用type_id
                     {"n": "全部", "v": ""},
                     *sub_categories[main_cat_id]  # 该主分类下的所有子分类
                 ]}
@@ -172,7 +172,7 @@ class Spider(BaseSpider):
         try:
             params = {
                 "ac": "detail",
-                "pg": "1"
+                "page": "1"  # 修改为使用page参数
             }
             data = self._request_data(params)
             if not data:
@@ -198,11 +198,11 @@ class Spider(BaseSpider):
             if extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
 
-            params = {"ac": "detail", "t": category_id, "pg": pg}
+            params = {"ac": "detail", "tid": category_id, "page": pg}  # 修改为使用page参数
             
             if extend:
                 for key, value in extend.items():
-                    if key != 't' and key != 'type_id' and value:
+                    if key != 'tid' and key != 'type_id' and value:
                         params[key] = value
 
             data = self._request_data(params)
@@ -243,10 +243,10 @@ class Spider(BaseSpider):
             
             def fetch_subcategory_videos(sub_cat):
                 sub_tid = sub_cat['v']
-                params = {"ac": "detail", "t": sub_tid, "pg": pg}
+                params = {"ac": "detail", "tid": sub_tid, "page": pg}  # 修改为使用page参数
                 if extend:
                     for key, value in extend.items():
-                        if key != 't' and key != 'type_id' and value:
+                        if key != 'tid' and key != 'type_id' and value:
                             params[key] = value
                 
                 sub_data = self._request_data(params)
@@ -321,7 +321,8 @@ class Spider(BaseSpider):
 
     def searchContent(self, key, quick, pg="1"):
         try:
-            data = self._request_data({"ac": "detail", "wd": key, "pg": pg})
+            params = {"ac": "detail", "wd": key, "page": pg}  # 修改为使用page参数
+            data = self._request_data(params)
             if not data:
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
