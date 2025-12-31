@@ -74,6 +74,7 @@ class Spider(BaseSpider):
             "vod_name": item["vod_name"],
             "vod_pic": item.get("vod_pic", ""),
             "vod_remarks": item.get("vod_remarks", ""),
+            "vod_time": item.get("vod_time", ""),  # 添加更新时间字段
             "vod_year": item.get("vod_year", ""),
             "vod_area": item.get("vod_area", ""),
             "vod_lang": item.get("vod_lang", ""),
@@ -167,70 +168,6 @@ class Spider(BaseSpider):
             self.log(f"获取分类信息失败: {str(e)}")
             return {"class": [], "filters": {}}
 
-    def _build_filter_options(self, sub_categories):
-        """
-        构建筛选选项
-        :param sub_categories: 二级分类数据
-        :return: 筛选选项
-        """
-        # 确保年份选项已生成
-        if self.YEAR_OPTIONS is None:
-            self.YEAR_OPTIONS = self._generate_year_options()
-            
-        filters = {}
-
-        # 电影片筛选
-        if "1" in sub_categories:
-            filters["1"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["1"]  # 电影片的二级分类
-                ]},
-                {"key": "area", "name": "地区", "value": [
-                    {"n": "全部", "v": ""},
-                    {"n": "大陆", "v": "大陆"},
-                    {"n": "香港", "v": "香港"},
-                    {"n": "台湾", "v": "台湾"},
-                    {"n": "美国", "v": "美国"},
-                    {"n": "韩国", "v": "韩国"},
-                    {"n": "日本", "v": "日本"},
-                    {"n": "泰国", "v": "泰国"}
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        # 连续剧筛选
-        if "2" in sub_categories:
-            filters["2"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["2"]  # 连续剧的二级分类
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        # 综艺片筛选
-        if "3" in sub_categories:
-            filters["3"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["3"]  # 综艺片的二级分类
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        # 动漫片筛选
-        if "4" in sub_categories:
-            filters["4"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["4"]  # 动漫片的二级分类
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        return filters
-
     def homeVideoContent(self):
         """
         获取首页视频内容 - 最新更新的视频列表
@@ -296,18 +233,13 @@ class Spider(BaseSpider):
 
             data = self._request_data(params)
             if not data:
-                return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
+                # 如果主分类请求失败，尝试获取子分类数据
+                return self._get_subcategory_data(tid, pg, extend)
 
             # 检查API是否返回错误或空数据
             if "list" not in data or not data["list"]:
-                self.log(f"分类 {category_id} 第 {pg} 页无数据返回，请求参数: {params}")
-                return {
-                    "list": [],
-                    "page": int(data.get("page", pg)),
-                    "pagecount": int(data.get("pagecount", 0)),
-                    "limit": int(data.get("limit", 20)),
-                    "total": int(data.get("total", 0))
-                }
+                self.log(f"分类 {category_id} 第 {pg} 页无数据返回，尝试获取子分类数据，请求参数: {params}")
+                return self._get_subcategory_data(tid, pg, extend)
 
             # 构建视频列表
             videos = [
@@ -329,6 +261,78 @@ class Spider(BaseSpider):
             self.log(f"获取分类内容失败: {str(e)}")
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
+    def _get_subcategory_data(self, tid, pg, extend):
+        """
+        获取子分类数据并合并
+        :param tid: 主分类ID
+        :param pg: 页码
+        :param extend: 扩展参数
+        :return: 合并后的分类内容数据
+        """
+        try:
+            # 获取所有子分类
+            _, sub_categories_map = self._fetch_categories()
+            
+            if tid not in sub_categories_map:
+                self.log(f"分类 {tid} 没有子分类")
+                return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
+            
+            sub_categories = sub_categories_map[tid]
+            all_videos = []
+            
+            # 并发获取子分类数据，最大并发数不超过4
+            import concurrent.futures
+            
+            def fetch_subcategory_videos(sub_cat):
+                sub_tid = sub_cat['v']
+                params = {"ac": "detail", "t": sub_tid, "pg": pg}
+                if extend:
+                    for key, value in extend.items():
+                        if key != 't' and key != 'type_id' and value:
+                            params[key] = value
+                
+                sub_data = self._request_data(params)
+                if sub_data and "list" in sub_data and sub_data["list"]:
+                    return [
+                        self._build_video_object(item)
+                        for item in sub_data.get("list", [])
+                        if item.get("type_id") not in self.EXCLUDE_CATEGORIES
+                    ]
+                return []
+            
+            # 使用线程池并发获取子分类数据，最大并发数为4
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+                futures = [executor.submit(fetch_subcategory_videos, sub_cat) for sub_cat in sub_categories]
+                for future in concurrent.futures.as_completed(futures):
+                    sub_videos = future.result()
+                    all_videos.extend(sub_videos)
+            
+            # 按vod_id排序，确保内容更新时列表保持相对稳定
+            all_videos.sort(key=lambda x: x.get('vod_time', ''), reverse=True)
+            
+            # 计算分页信息
+            total = len(all_videos)
+            limit = 20
+            pagecount = (total + limit - 1) // limit  # 向上取整
+            
+            # 分页处理
+            start_idx = (int(pg) - 1) * limit
+            end_idx = start_idx + limit
+            paged_videos = all_videos[start_idx:end_idx]
+            
+            result = {
+                "list": paged_videos,
+                "page": int(pg),
+                "pagecount": pagecount,
+                "limit": limit,
+                "total": total
+            }
+            
+            self.log(f"从子分类获取到 {len(paged_videos)} 个视频, 总计 {total} 个")
+            return result
+        except Exception as e:
+            self.log(f"获取子分类数据失败: {str(e)}")
+            return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
     def _filter_play_sources(self, play_from, play_url):
         """
@@ -384,15 +388,20 @@ class Spider(BaseSpider):
                 if item.get("type_id") in self.EXCLUDE_CATEGORIES:
                     continue
 
-                # 构建基础视频对象并应用播放源过滤
+                # 构建基础视频对象
                 detail = self._build_video_object(item)
-                play_from, play_url = item.get("vod_play_from", ""), item.get("vod_play_url", "")
-                filtered_from, filtered_url = self._filter_play_sources(play_from, play_url)
-
+                
+                # 过滤播放源，移除feifan播放源
+                play_from = item.get("vod_play_from", "")
+                play_url = item.get("vod_play_url", "")
+                
+                # 过滤feifan播放源
+                filtered_play_from, filtered_play_url = self._filter_play_sources(play_from, play_url)
+                
                 # 更新详情页特有字段
                 detail.update({
-                    "vod_play_from": filtered_from,
-                    "vod_play_url": filtered_url
+                    "vod_play_from": filtered_play_from,
+                    "vod_play_url": filtered_play_url
                 })
                 details.append(detail)
 
