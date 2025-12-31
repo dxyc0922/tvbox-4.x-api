@@ -253,10 +253,15 @@ class Spider(BaseSpider):
 
             # 构建请求参数
             params = {"ac": "detail", "t": tid, "pg": pg}
+            
+            # 添加筛选参数，但不包括t参数（分类ID由主参数指定）
             if extend:
                 for key, value in extend.items():
-                    if value:  # 只要值不为空，就添加到参数中
+                    if key != 't' and value:  # 避免覆盖主分类参数t
                         params[key] = value
+                        
+            # 记录请求参数日志，方便调试
+            self.log(f"请求参数: {params}")
 
             data = self._request_data(params)
             if not data:
@@ -264,7 +269,7 @@ class Spider(BaseSpider):
 
             # 检查API是否返回错误或空数据
             if "list" not in data or not data["list"]:
-                self.log(f"分类 {tid} 第 {pg} 页无数据返回")
+                self.log(f"分类 {tid} 第 {pg} 页无数据返回，请求参数: {params}")
                 return {
                     "list": [],
                     "page": int(data.get("page", pg)),
