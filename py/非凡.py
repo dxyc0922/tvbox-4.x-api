@@ -1,9 +1,9 @@
 # 非凡资源站实现
+from base.spider import Spider as BaseSpider
+import time
+import json
 import sys
 sys.path.append('..')
-import json
-import time
-from base.spider import Spider as BaseSpider
 
 
 class Spider(BaseSpider):
@@ -40,31 +40,35 @@ class Spider(BaseSpider):
         import time  # 在方法开始时导入一次time模块
         for attempt in range(retries):
             try:
-                response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS, timeout=timeout)
+                response = self.fetch(
+                    self.API_URL, params=params, headers=self.DEFAULT_HEADERS, timeout=timeout)
                 if response.status_code == 200:
                     data = json.loads(response.text)
                     # 检查返回的数据是否为有效格式
                     if data is not None:
                         # 检查API返回的code字段，通常1表示成功
-                        if "code" in data and data["code"] in (0, 1):  # 有些API 0表示成功，有些1表示成功
+                        # 有些API 0表示成功，有些1表示成功
+                        if "code" in data and data["code"] in (0, 1):
                             return data
                         elif "list" in data:  # 即使没有code字段，只要有list也可以认为是有效数据
                             return data
                         else:
-                            self.log(f"API返回错误码: {data.get('code', 'N/A')}, params: {params}")
+                            self.log(
+                                f"API返回错误码: {data.get('code', 'N/A')}, params: {params}")
                     else:
                         self.log(f"请求返回数据无效: {params}")
                 else:
-                    self.log(f"请求失败，状态码: {response.status_code}, params: {params}")
+                    self.log(
+                        f"请求失败，状态码: {response.status_code}, params: {params}")
             except json.JSONDecodeError:
                 self.log(f"响应不是有效的JSON格式: {params}")
             except Exception as e:
                 self.log(f"请求异常: {str(e)}, params: {params}")
-            
+
             # 如果不是最后一次尝试，等待一段时间再重试
             if attempt < retries - 1:
                 time.sleep(0.5)  # 等待0.5秒再重试
-        
+
         return None
 
     def _build_video_object(self, item):
@@ -83,6 +87,70 @@ class Spider(BaseSpider):
             "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
             "type_name": item.get("type_name", "")
         }
+
+    def _build_filter_options(self, sub_categories):
+        """
+        构建筛选选项
+        :param sub_categories: 二级分类数据
+        :return: 筛选选项
+        """
+        # 确保年份选项已生成
+        if self.YEAR_OPTIONS is None:
+            self.YEAR_OPTIONS = self._generate_year_options()
+
+        filters = {}
+
+        # 电影片筛选
+        if "1" in sub_categories:
+            filters["1"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["1"]  # 电影片的二级分类
+                ]},
+                {"key": "area", "name": "地区", "value": [
+                    {"n": "全部", "v": ""},
+                    {"n": "大陆", "v": "大陆"},
+                    {"n": "香港", "v": "香港"},
+                    {"n": "台湾", "v": "台湾"},
+                    {"n": "美国", "v": "美国"},
+                    {"n": "韩国", "v": "韩国"},
+                    {"n": "日本", "v": "日本"},
+                    {"n": "泰国", "v": "泰国"}
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        # 连续剧筛选
+        if "2" in sub_categories:
+            filters["2"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["2"]  # 连续剧的二级分类
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        # 综艺片筛选
+        if "3" in sub_categories:
+            filters["3"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["3"]  # 综艺片的二级分类
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        # 动漫片筛选
+        if "4" in sub_categories:
+            filters["4"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["4"]  # 动漫片的二级分类
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        return filters
 
     def getName(self):
         """
@@ -131,15 +199,17 @@ class Spider(BaseSpider):
                 pid_str = str(type_pid)
                 if pid_str not in sub_categories_map:
                     sub_categories_map[pid_str] = []
-                sub_categories_map[pid_str].append({"n": cat["type_name"], "v": str(type_id)})
+                sub_categories_map[pid_str].append(
+                    {"n": cat["type_name"], "v": str(type_id)})
 
         # 添加调试日志
         self.log(f"获取分类成功: {len(primary_categories)} 个一级分类")
         for cat in primary_categories:
             cat_id = cat["type_id"]
             if cat_id in sub_categories_map:
-                self.log(f"分类 {cat['type_name']}({cat_id}) 有 {len(sub_categories_map[cat_id])} 个子分类")
-        
+                self.log(
+                    f"分类 {cat['type_name']}({cat_id}) 有 {len(sub_categories_map[cat_id])} 个子分类")
+
         # 缓存结果
         self.CATEGORY_CACHE = (primary_categories, sub_categories_map)
         return primary_categories, sub_categories_map
@@ -152,7 +222,7 @@ class Spider(BaseSpider):
         """
         try:
             primary_categories, sub_categories_map = self._fetch_categories()
-            
+
             # 仅在需要时定义筛选条件
             filters = {}
             if filter:
@@ -216,18 +286,18 @@ class Spider(BaseSpider):
             category_id = tid
             if extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
-                
+
             self.log(f"正在获取分类 {category_id} 第 {pg} 页内容...")
 
             # 构建请求参数
             params = {"ac": "detail", "t": category_id, "pg": pg}
-            
+
             # 添加其他筛选参数，但不包括type_id（因为它已经被用作t参数）
             if extend:
                 for key, value in extend.items():
                     if key != 't' and key != 'type_id' and value:  # 避免覆盖主分类参数t和type_id
                         params[key] = value
-                        
+
             # 记录请求参数日志，方便调试
             self.log(f"请求参数: {params}")
 
@@ -238,7 +308,8 @@ class Spider(BaseSpider):
 
             # 检查API是否返回错误或空数据
             if "list" not in data or not data["list"]:
-                self.log(f"分类 {category_id} 第 {pg} 页无数据返回，尝试获取子分类数据，请求参数: {params}")
+                self.log(
+                    f"分类 {category_id} 第 {pg} 页无数据返回，尝试获取子分类数据，请求参数: {params}")
                 return self._get_subcategory_data(tid, pg, extend)
 
             # 构建视频列表
@@ -272,17 +343,17 @@ class Spider(BaseSpider):
         try:
             # 获取所有子分类
             _, sub_categories_map = self._fetch_categories()
-            
+
             if tid not in sub_categories_map:
                 self.log(f"分类 {tid} 没有子分类")
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
-            
+
             sub_categories = sub_categories_map[tid]
             all_videos = []
-            
+
             # 并发获取子分类数据，最大并发数不超过4
             import concurrent.futures
-            
+
             def fetch_subcategory_videos(sub_cat):
                 sub_tid = sub_cat['v']
                 params = {"ac": "detail", "t": sub_tid, "pg": pg}
@@ -290,7 +361,7 @@ class Spider(BaseSpider):
                     for key, value in extend.items():
                         if key != 't' and key != 'type_id' and value:
                             params[key] = value
-                
+
                 sub_data = self._request_data(params)
                 if sub_data and "list" in sub_data and sub_data["list"]:
                     return [
@@ -299,27 +370,28 @@ class Spider(BaseSpider):
                         if item.get("type_id") not in self.EXCLUDE_CATEGORIES
                     ]
                 return []
-            
+
             # 使用线程池并发获取子分类数据，最大并发数为4
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [executor.submit(fetch_subcategory_videos, sub_cat) for sub_cat in sub_categories]
+                futures = [executor.submit(
+                    fetch_subcategory_videos, sub_cat) for sub_cat in sub_categories]
                 for future in concurrent.futures.as_completed(futures):
                     sub_videos = future.result()
                     all_videos.extend(sub_videos)
-            
+
             # 按vod_id排序，确保内容更新时列表保持相对稳定
             all_videos.sort(key=lambda x: x.get('vod_time', ''), reverse=True)
-            
+
             # 计算分页信息
             total = len(all_videos)
             limit = 20
             pagecount = (total + limit - 1) // limit  # 向上取整
-            
+
             # 分页处理
             start_idx = (int(pg) - 1) * limit
             end_idx = start_idx + limit
             paged_videos = all_videos[start_idx:end_idx]
-            
+
             result = {
                 "list": paged_videos,
                 "page": int(pg),
@@ -327,7 +399,7 @@ class Spider(BaseSpider):
                 "limit": limit,
                 "total": total
             }
-            
+
             self.log(f"从子分类获取到 {len(paged_videos)} 个视频, 总计 {total} 个")
             return result
         except Exception as e:
@@ -350,15 +422,16 @@ class Spider(BaseSpider):
 
         # 过滤掉feifan播放源并使用列表推导式提高效率
         filtered_pairs = [
-            (source, url_list[i]) 
-            for i, source in enumerate(from_list) 
+            (source, url_list[i])
+            for i, source in enumerate(from_list)
             if i < len(url_list) and 'feifan' not in source.lower()
         ]
 
         if not filtered_pairs:
             return play_from, play_url  # 如果过滤后为空，返回原始值
 
-        filtered_from_list, filtered_url_list = zip(*filtered_pairs) if filtered_pairs else ([], [])
+        filtered_from_list, filtered_url_list = zip(
+            *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
 
     def detailContent(self, ids):
@@ -390,14 +463,15 @@ class Spider(BaseSpider):
 
                 # 构建基础视频对象
                 detail = self._build_video_object(item)
-                
+
                 # 过滤播放源，移除feifan播放源
                 play_from = item.get("vod_play_from", "")
                 play_url = item.get("vod_play_url", "")
-                
+
                 # 过滤feifan播放源
-                filtered_play_from, filtered_play_url = self._filter_play_sources(play_from, play_url)
-                
+                filtered_play_from, filtered_play_url = self._filter_play_sources(
+                    play_from, play_url)
+
                 # 更新详情页特有字段
                 detail.update({
                     "vod_play_from": filtered_play_from,
