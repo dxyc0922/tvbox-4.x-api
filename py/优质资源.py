@@ -158,11 +158,11 @@ class Spider(BaseSpider):
         sub_categories_map = {}
 
         for cat in all_categories:
-            type_id = cat.get("type_id")
-            type_pid = cat.get("type_pid", 0)
-
             if type_id in self.EXCLUDE_CATEGORIES:
                 continue
+
+            type_id = cat.get("type_id")
+            type_pid = cat.get("type_pid", 0)
 
             if type_pid == 0:
                 primary_categories.append({
