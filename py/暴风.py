@@ -210,7 +210,7 @@ class Spider(BaseSpider):
         try:
             params = {
                 "ac": "detail",
-                "page": "1"  # 修改为使用page参数
+                "pg": "1"
             }
             data = self._request_data(params)
             if not data:
@@ -236,7 +236,7 @@ class Spider(BaseSpider):
             if extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
 
-            params = {"ac": "detail", "tid": category_id, "page": pg}
+            params = {"ac": "detail", "t": category_id, "pg": pg}
             
             if extend:
                 for key, value in extend.items():
@@ -281,7 +281,7 @@ class Spider(BaseSpider):
             
             def fetch_subcategory_videos(sub_cat):
                 sub_tid = sub_cat['v']
-                params = {"ac": "detail", "tid": sub_tid, "page": pg}  # 修改为使用page参数
+                params = {"ac": "detail", "t": sub_tid, "pg": pg}  # 修改为使用page参数
                 if extend:
                     for key, value in extend.items():
                         if key != 'tid' and key != 'type_id' and value:
@@ -359,7 +359,7 @@ class Spider(BaseSpider):
 
     def searchContent(self, key, quick, pg="1"):
         try:
-            params = {"ac": "detail", "wd": key, "page": pg}  # 修改为使用page参数
+            params = {"ac": "detail", "wd": key, "pg": pg}
             data = self._request_data(params)
             if not data:
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
