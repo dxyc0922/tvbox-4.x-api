@@ -337,7 +337,7 @@ class Spider(BaseSpider):
             videos = [
                 self._build_video_object(item)
                 for item in data.get("list", [])
-                if item.get("type_id") not in self.EXCLUDE_CATEGORIES
+                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
             ]
 
             result = {"list": videos}
@@ -380,7 +380,7 @@ class Spider(BaseSpider):
             videos = [
                 self._build_video_object(item)
                 for item in data.get("list", [])
-                if item.get("type_id") not in self.EXCLUDE_CATEGORIES
+                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
             ]
 
             result = {
@@ -439,7 +439,7 @@ class Spider(BaseSpider):
                     return [
                         self._build_video_object(item)
                         for item in sub_data.get("list", [])
-                        if item.get("type_id") not in self.EXCLUDE_CATEGORIES
+                        if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
                     ]
                 return []
 
@@ -547,7 +547,7 @@ class Spider(BaseSpider):
             videos = [
                 self._build_video_object(item)
                 for item in data.get("list", [])
-                if item.get("type_id") not in self.EXCLUDE_CATEGORIES
+                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
             ]
 
             result = {
