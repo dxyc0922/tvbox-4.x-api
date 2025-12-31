@@ -182,7 +182,7 @@ class Spider(BaseSpider):
         # 电影片筛选
         if "1" in sub_categories:
             filters["1"] = [
-                {"key": "class", "name": "类型", "value": [
+                {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
                     *sub_categories["1"]  # 电影片的二级分类
                 ]},
@@ -202,7 +202,7 @@ class Spider(BaseSpider):
         # 连续剧筛选
         if "2" in sub_categories:
             filters["2"] = [
-                {"key": "class", "name": "类型", "value": [
+                {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
                     *sub_categories["2"]  # 连续剧的二级分类
                 ]},
@@ -212,7 +212,7 @@ class Spider(BaseSpider):
         # 综艺片筛选
         if "3" in sub_categories:
             filters["3"] = [
-                {"key": "class", "name": "类型", "value": [
+                {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
                     *sub_categories["3"]  # 综艺片的二级分类
                 ]},
@@ -222,7 +222,7 @@ class Spider(BaseSpider):
         # 动漫片筛选
         if "4" in sub_categories:
             filters["4"] = [
-                {"key": "class", "name": "类型", "value": [
+                {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
                     *sub_categories["4"]  # 动漫片的二级分类
                 ]},
@@ -275,15 +275,20 @@ class Spider(BaseSpider):
         :return: 分类内容数据
         """
         try:
-            self.log(f"正在获取分类 {tid} 第 {pg} 页内容...")
+            # 检查是否有type_id参数，如果有则使用type_id作为分类ID
+            category_id = tid
+            if extend and 'type_id' in extend and extend['type_id']:
+                category_id = extend['type_id']
+                
+            self.log(f"正在获取分类 {category_id} 第 {pg} 页内容...")
 
             # 构建请求参数
-            params = {"ac": "detail", "t": tid, "pg": pg}
+            params = {"ac": "detail", "t": category_id, "pg": pg}
             
-            # 添加筛选参数，但不包括t参数（分类ID由主参数指定）
+            # 添加其他筛选参数，但不包括type_id（因为它已经被用作t参数）
             if extend:
                 for key, value in extend.items():
-                    if key != 't' and value:  # 避免覆盖主分类参数t
+                    if key != 't' and key != 'type_id' and value:  # 避免覆盖主分类参数t和type_id
                         params[key] = value
                         
             # 记录请求参数日志，方便调试
@@ -295,7 +300,7 @@ class Spider(BaseSpider):
 
             # 检查API是否返回错误或空数据
             if "list" not in data or not data["list"]:
-                self.log(f"分类 {tid} 第 {pg} 页无数据返回，请求参数: {params}")
+                self.log(f"分类 {category_id} 第 {pg} 页无数据返回，请求参数: {params}")
                 return {
                     "list": [],
                     "page": int(data.get("page", pg)),
