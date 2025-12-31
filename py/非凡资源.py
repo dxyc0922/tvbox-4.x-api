@@ -158,7 +158,7 @@ class Spider(BaseSpider):
         sub_categories_map = {}
 
         for cat in all_categories:
-            if type_id in self.EXCLUDE_CATEGORIES:
+            if cat.get("type_id") in self.EXCLUDE_CATEGORIES:
                 continue
 
             type_id = cat.get("type_id")
