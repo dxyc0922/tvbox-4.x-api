@@ -45,7 +45,13 @@ class Spider(BaseSpider):
                     data = json.loads(response.text)
                     # 检查返回的数据是否为有效格式
                     if data is not None:
-                        return data
+                        # 检查API返回的code字段，通常1表示成功
+                        if "code" in data and data["code"] in (0, 1):  # 有些API 0表示成功，有些1表示成功
+                            return data
+                        elif "list" in data:  # 即使没有code字段，只要有list也可以认为是有效数据
+                            return data
+                        else:
+                            self.log(f"API返回错误码: {data.get('code', 'N/A')}, params: {params}")
                     else:
                         self.log(f"请求返回数据无效: {params}")
                 else:
@@ -165,13 +171,6 @@ class Spider(BaseSpider):
             self.YEAR_OPTIONS = self._generate_year_options()
             
         filters = {}
-        base_filter = [
-            {"key": "class", "name": "类型", "value": [
-                {"n": "全部", "v": ""},
-                *sub_categories.get("1", [])  # 电影片的二级分类
-            ]},
-            {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-        ]
 
         # 电影片筛选
         if "1" in sub_categories:
@@ -193,24 +192,15 @@ class Spider(BaseSpider):
                 {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
             ]
 
-        # 连续剧筛选
-        if "2" in sub_categories:
-            filters["2"] = base_filter.copy()
-
-        # 综艺片筛选
-        if "3" in sub_categories:
-            filters["3"] = base_filter.copy()
-
-        # 动漫片筛选
-        if "4" in sub_categories:
-            filters["4"] = base_filter.copy()
-
-        # 为连续剧、综艺和动漫添加特定筛选项
+        # 为连续剧、综艺和动漫单独构建筛选项
         for cat_id in ["2", "3", "4"]:
-            if cat_id in filters:
-                filters[cat_id][0]["value"] = [
-                    {"n": "全部", "v": ""},
-                    *sub_categories.get(cat_id, [])
+            if cat_id in sub_categories:
+                filters[cat_id] = [
+                    {"key": "class", "name": "类型", "value": [
+                        {"n": "全部", "v": ""},
+                        *sub_categories[cat_id]  # 使用各自分类的二级分类
+                    ]},
+                    {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
                 ]
 
         return filters
@@ -228,6 +218,11 @@ class Spider(BaseSpider):
             }
             data = self._request_data(params)
             if not data:
+                return {"list": []}
+
+            # 检查API是否返回错误或空数据
+            if "list" not in data or not data["list"]:
+                self.log("首页无数据返回")
                 return {"list": []}
 
             # 使用列表推导式构建视频列表
@@ -267,6 +262,17 @@ class Spider(BaseSpider):
             if not data:
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
+            # 检查API是否返回错误或空数据
+            if "list" not in data or not data["list"]:
+                self.log(f"分类 {tid} 第 {pg} 页无数据返回")
+                return {
+                    "list": [],
+                    "page": int(data.get("page", pg)),
+                    "pagecount": int(data.get("pagecount", 0)),
+                    "limit": int(data.get("limit", 20)),
+                    "total": int(data.get("total", 0))
+                }
+
             # 构建视频列表
             videos = [
                 self._build_video_object(item)
@@ -276,7 +282,7 @@ class Spider(BaseSpider):
 
             result = {
                 "list": videos,
-                "page": int(data.get("page", 1)),
+                "page": int(data.get("page", pg)),
                 "pagecount": int(data.get("pagecount", 1)),
                 "limit": int(data.get("limit", 20)),
                 "total": int(data.get("total", 0))
@@ -331,6 +337,11 @@ class Spider(BaseSpider):
             if not data or "list" not in data:
                 return {"list": []}
 
+            # 检查API是否返回错误或空数据
+            if not data["list"]:
+                self.log(f"ID {ids} 的详情内容为空")
+                return {"list": []}
+
             details = []
             for item in data["list"]:
                 # 跳过伦理片分类的视频
@@ -372,6 +383,17 @@ class Spider(BaseSpider):
             if not data:
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
+            # 检查API是否返回错误或空数据
+            if "list" not in data or not data["list"]:
+                self.log(f"搜索关键词 '{key}' 无结果")
+                return {
+                    "list": [],
+                    "page": int(data.get("page", pg)),
+                    "pagecount": int(data.get("pagecount", 0)),
+                    "limit": int(data.get("limit", 20)),
+                    "total": int(data.get("total", 0))
+                }
+
             # 使用列表推导式构建视频列表
             videos = [
                 self._build_video_object(item)
@@ -381,7 +403,7 @@ class Spider(BaseSpider):
 
             result = {
                 "list": videos,
-                "page": int(data.get("page", 1)),
+                "page": int(data.get("page", pg)),
                 "pagecount": int(data.get("pagecount", 1)),
                 "limit": int(data.get("limit", 20)),
                 "total": int(data.get("total", 0))
