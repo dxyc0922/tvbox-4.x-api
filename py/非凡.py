@@ -1,20 +1,22 @@
+# 非凡资源站实现
 import re
 import os
 import json
 import time
 import requests
-# from lxml import etree
-# from com.github.catvod import Proxy  # type: ignore
-# from com.chaquo.python import Python  # type: ignore
-# from abc import abstractmethod, ABCMeta
-# from importlib.machinery import SourceFileLoader
+from lxml import etree
+from com.github.catvod import Proxy
+from com.chaquo.python import Python
+from abc import abstractmethod, ABCMeta
+from importlib.machinery import SourceFileLoader
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from .spider import Spider
 
 
-class Spider:
+class Spider(Spider):
     """
     非凡资源站爬虫实现
-    API接口: hhttp://api.ffzyapi.com/api.php/provide/vod/
+    API接口: http://api.ffzyapi.com/api.php/provide/vod/
     支持首页、分类、搜索、详情和播放功能
     """
 
@@ -23,11 +25,18 @@ class Spider:
     SITE_URL = "https://ffzy.tv"
     SPIDER_NAME = "非凡资源站"
     EXCLUDE_CATEGORIES = {34}  # 伦理片分类ID
-    MAIN_CATEGORIES = {"1", "2", "3", "4"}  # 一级分类ID
-    USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-
-    def __init__(self):
-        self.extend = ""
+    USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+    DEFAULT_HEADERS = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Encoding": "gzip, deflate",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+        "Cache-Control": "max-age=0",
+        "DNT": "1",
+        "Host": "api.ffzyapi.com",
+        "Proxy-Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+    }
 
     def getName(self):
         """
@@ -63,8 +72,7 @@ class Spider:
                 "ac": "list",  # 使用list获取分类信息
                 "pg": "1"
             }
-            response = self.fetch(self.API_URL, params=params, headers={
-                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
                 print(f"获取分类数据失败，状态码: {response.status_code}")
                 return {"class": [], "filters": {}}
@@ -179,8 +187,7 @@ class Spider:
                 "pg": "1",
                 "h": "24"  # 获取24小时内更新的内容
             }
-            response = self.fetch(self.API_URL, params=params, headers={
-                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
                 print(f"获取首页视频数据失败，状态码: {response.status_code}")
                 return {"list": []}
@@ -227,34 +234,52 @@ class Spider:
         try:
             print(f"正在获取分类 {tid} 第 {pg} 页内容...")
 
-            # 如果是一级分类（tid为1,2,3,4），则并发获取其子分类数据
-            if tid in self.MAIN_CATEGORIES:
-                return self._getMergedCategoryContent(tid, pg, extend)
-            else:
-                # 使用ac=detail参数以获取完整信息
-                params = {
-                    "ac": "detail",  # 使用detail参数获取完整信息，包括图片
-                    "t": tid,        # 分类ID
-                    "pg": pg         # 页码
-                }
+            # 先获取分类数据，使用ac=list参数获取基本数据
+            params = {
+                "ac": "list",
+                "t": tid,
+                "pg": pg
+            }
+            
+            # 添加其他筛选参数
+            if extend:
+                for key, value in extend.items():
+                    if key != "class" and value:  # 避免重复添加class参数，只添加非空的筛选参数
+                        params[key] = value
 
-                # 添加其他筛选参数（除了class，因为class已经被用作分类ID）
+            response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS)
+            if response.status_code != 200:
+                print(f"获取分类数据失败，状态码: {response.status_code}")
+                return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
+
+            data = json.loads(response.text)
+            videos = []
+
+            # 检查返回的列表是否为空，如果为空则说明是一级分类，需要并发获取子分类数据
+            if "list" in data and data["list"]:
+                # 返回的不是空列表，使用detail接口获取完整信息
+                # 使用ac=detail参数以获取完整信息
+                detail_params = {
+                    "ac": "detail",
+                    "t": tid,
+                    "pg": pg
+                }
+                
+                # 添加其他筛选参数
                 if extend:
                     for key, value in extend.items():
                         if key != "class" and value:  # 避免重复添加class参数，只添加非空的筛选参数
-                            params[key] = value
+                            detail_params[key] = value
 
-                response = self.fetch(self.API_URL, params=params, headers={
-                                      "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
-                if response.status_code != 200:
-                    print(f"获取分类数据失败，状态码: {response.status_code}")
+                detail_response = self.fetch(self.API_URL, params=detail_params, headers=self.DEFAULT_HEADERS)
+                if detail_response.status_code != 200:
+                    print(f"获取分类详细数据失败，状态码: {detail_response.status_code}")
                     return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
-                data = json.loads(response.text)
-                videos = []
+                detail_data = json.loads(detail_response.text)
 
-                if "list" in data and data["list"]:
-                    for item in data["list"]:
+                if "list" in detail_data and detail_data["list"]:
+                    for item in detail_data["list"]:
                         # 过滤掉伦理片分类的视频
                         if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
                             video = {
@@ -275,13 +300,16 @@ class Spider:
 
                 result = {
                     "list": videos,
-                    "page": int(data.get("page", 1)),
-                    "pagecount": int(data.get("pagecount", 1)),
-                    "limit": int(data.get("limit", 20)),
-                    "total": int(data.get("total", 0))
+                    "page": int(detail_data.get("page", 1)),
+                    "pagecount": int(detail_data.get("pagecount", 1)),
+                    "limit": int(detail_data.get("limit", 20)),
+                    "total": int(detail_data.get("total", 0))
                 }
                 print(f"分类内容获取成功: {len(videos)} 个视频, 总计 {result['total']} 个")
                 return result
+            else:
+                # 返回的列表是空的，说明是一级分类，需要并发获取子分类数据
+                return self._getMergedCategoryContent(tid, pg, extend)
         except Exception as e:
             print(f"获取分类内容失败: {str(e)}")
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
@@ -300,8 +328,7 @@ class Spider:
                 "ac": "list",  # 使用list获取分类信息
                 "pg": "1"
             }
-            response = self.fetch(self.API_URL, params=params, headers={
-                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
                 print(f"获取分类数据失败，状态码: {response.status_code}")
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
@@ -320,7 +347,7 @@ class Spider:
             with ThreadPoolExecutor(max_workers=4) as executor:
                 # 提交所有子分类的请求
                 future_to_cat = {
-                    executor.submit(self._getSubCategoryVideos, cat_id, 1, extend): cat_id
+                    executor.submit(self._getSubCategoryVideos, cat_id, pg, extend): cat_id
                     for cat_id in sub_categories
                 }
 
@@ -372,8 +399,7 @@ class Spider:
                     if key != "class" and value:  # 避免重复添加class参数，只添加非空的筛选参数
                         params[key] = value
 
-            response = self.fetch(self.API_URL, params=params, headers={
-                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
                 print(f"获取子分类数据失败，状态码: {response.status_code}")
                 return []
@@ -383,7 +409,7 @@ class Spider:
 
             if "list" in data and data["list"]:
                 for item in data["list"]:
-                    # 过滤掉伦理片分类的视频
+                    # 过格掉伦理片分类的视频
                     if item.get("type_id") not in self.EXCLUDE_CATEGORIES:
                         video = {
                             "vod_id": str(item["vod_id"]),
@@ -425,8 +451,7 @@ class Spider:
                 "ids": ids_str
             }
 
-            response = self.fetch(self.API_URL, params=params, headers={
-                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
                 print(f"获取详情数据失败，状态码: {response.status_code}")
                 return {"list": []}
@@ -504,8 +529,7 @@ class Spider:
                 "pg": pg
             }
 
-            response = self.fetch(self.API_URL, params=params, headers={
-                                  "User-Agent": self.USER_AGENT, "Referer": self.SITE_URL})
+            response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
                 print(f"搜索数据失败，状态码: {response.status_code}")
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
@@ -553,57 +577,10 @@ class Spider:
         :param vipFlags: VIP标识列表
         :return: 包含播放URL和播放信息的字典
         """
-        return {'url': id, 'header': {"User-Agent": self.USER_AGENT}, 'parse': 0, 'jx': 0}
-
-    def localProxy(self, param):
-        """
-        本地代理方法
-        :param param: 代理参数
-        :return: 代理结果
-        """
-        pass
+        return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
         """
         销毁爬虫实例，释放资源
         """
         print("非凡资源站爬虫已销毁")
-
-    def fetch(self, url, params=None, cookies=None, headers=None, timeout=10, verify=True, stream=False, allow_redirects=True):
-        """
-        发送GET请求获取数据
-        :param url: 请求URL
-        :param params: 请求参数
-        :param cookies: 请求Cookie
-        :param headers: 请求头
-        :param timeout: 超时时间
-        :param verify: 是否验证SSL证书
-        :param stream: 是否使用流式请求
-        :param allow_redirects: 是否允许重定向
-        :return: 响应对象
-        """
-        try:
-            rsp = requests.get(url, params=params, cookies=cookies, headers=headers,
-                               timeout=timeout, verify=verify, stream=stream, allow_redirects=allow_redirects)
-            rsp.encoding = 'utf-8'
-            return rsp
-        except Exception as e:
-            print(f"请求失败: {str(e)}")
-            return None
-
-    def removeHtmlTags(self, src):
-        """
-        移除HTML标签
-        :param src: 包含HTML标签的字符串
-        :return: 移除HTML标签后的字符串
-        """
-        if not src:
-            return ""
-        clean = re.compile('<.*?>')
-        return re.sub(clean, '', src).strip()
-
-
-if __name__ == "__main__":
-    spider = Spider()
-    spider.init()
-    spider.detailContent(['51818'])
