@@ -140,95 +140,31 @@ class Spider(BaseSpider):
             
         filters = {}
 
-        # 电影片筛选 (主分类ID为20，子分类包括动作片、喜剧片等)
-        if "21" in sub_categories or "22" in sub_categories or "23" in sub_categories or "24" in sub_categories or "25" in sub_categories or "26" in sub_categories or "27" in sub_categories or "28" in sub_categories:
-            movie_filters = []
-            all_movie_subcats = []
-            for cat_id in ["21", "22", "23", "24", "25", "26", "27", "28", "50"]:
-                if cat_id in sub_categories:
-                    all_movie_subcats.extend(sub_categories[cat_id])
-            if all_movie_subcats:
-                movie_filters.append({"key": "class", "name": "类型", "value": [
+        # 通用筛选项构建，适用于所有主分类
+        for main_cat_id in sub_categories:
+            # 为每个有子分类的主分类添加筛选项
+            filters[main_cat_id] = [
+                {"key": "class", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
-                    *all_movie_subcats
-                ]})
-            movie_filters.append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
-            filters["20"] = movie_filters
-
-        # 连续剧筛选 (主分类ID为30，子分类包括国产剧、欧美剧等)
-        if "31" in sub_categories or "32" in sub_categories or "33" in sub_categories or "34" in sub_categories or "35" in sub_categories or "36" in sub_categories or "37" in sub_categories or "38" in sub_categories:
-            tv_filters = []
-            all_tv_subcats = []
-            for cat_id in ["31", "32", "33", "34", "35", "36", "37", "38"]:
-                if cat_id in sub_categories:
-                    all_tv_subcats.extend(sub_categories[cat_id])
-            if all_tv_subcats:
-                tv_filters.append({"key": "class", "name": "类型", "value": [
+                    *sub_categories[main_cat_id]  # 该主分类下的所有子分类
+                ]}
+            ]
+            
+            # 根据主分类添加特定的筛选项
+            if main_cat_id in ["20", "1"]:  # 电影片
+                filters[main_cat_id].append({"key": "area", "name": "地区", "value": [
                     {"n": "全部", "v": ""},
-                    *all_tv_subcats
+                    {"n": "大陆", "v": "大陆"},
+                    {"n": "香港", "v": "香港"},
+                    {"n": "台湾", "v": "台湾"},
+                    {"n": "美国", "v": "美国"},
+                    {"n": "韩国", "v": "韩国"},
+                    {"n": "日本", "v": "日本"},
+                    {"n": "泰国", "v": "泰国"}
                 ]})
-            tv_filters.append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
-            filters["30"] = tv_filters
-
-        # 动漫片筛选 (主分类ID为39，子分类包括国产动漫、日韩动漫等)
-        if "40" in sub_categories or "41" in sub_categories or "42" in sub_categories or "43" in sub_categories or "44" in sub_categories:
-            cartoon_filters = []
-            all_cartoon_subcats = []
-            for cat_id in ["40", "41", "42", "43", "44"]:
-                if cat_id in sub_categories:
-                    all_cartoon_subcats.extend(sub_categories[cat_id])
-            if all_cartoon_subcats:
-                cartoon_filters.append({"key": "class", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *all_cartoon_subcats
-                ]})
-            cartoon_filters.append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
-            filters["39"] = cartoon_filters
-
-        # 综艺片筛选 (主分类ID为45，子分类包括大陆综艺、港台综艺等)
-        if "46" in sub_categories or "47" in sub_categories or "48" in sub_categories or "49" in sub_categories:
-            variety_filters = []
-            all_variety_subcats = []
-            for cat_id in ["46", "47", "48", "49"]:
-                if cat_id in sub_categories:
-                    all_variety_subcats.extend(sub_categories[cat_id])
-            if all_variety_subcats:
-                variety_filters.append({"key": "class", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *all_variety_subcats
-                ]})
-            variety_filters.append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
-            filters["45"] = variety_filters
-
-        # 体育赛事筛选 (主分类ID为53，子分类包括足球、篮球等)
-        if "54" in sub_categories or "55" in sub_categories or "56" in sub_categories or "57" in sub_categories:
-            sport_filters = []
-            all_sport_subcats = []
-            for cat_id in ["54", "55", "56", "57"]:
-                if cat_id in sub_categories:
-                    all_sport_subcats.extend(sub_categories[cat_id])
-            if all_sport_subcats:
-                sport_filters.append({"key": "class", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *all_sport_subcats
-                ]})
-            sport_filters.append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
-            filters["53"] = sport_filters
-
-        # 短剧大全筛选 (主分类ID为58，子分类包括各种短剧类型)
-        if "65" in sub_categories or "66" in sub_categories or "67" in sub_categories or "68" in sub_categories or "69" in sub_categories or "70" in sub_categories or "71" in sub_categories or "72" in sub_categories:
-            short_filters = []
-            all_short_subcats = []
-            for cat_id in ["65", "66", "67", "68", "69", "70", "71", "72"]:
-                if cat_id in sub_categories:
-                    all_short_subcats.extend(sub_categories[cat_id])
-            if all_short_subcats:
-                short_filters.append({"key": "class", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *all_short_subcats
-                ]})
-            short_filters.append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
-            filters["58"] = short_filters
+            
+            # 所有分类都添加年份筛选
+            filters[main_cat_id].append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
 
         return filters
 
