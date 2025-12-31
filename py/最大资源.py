@@ -25,7 +25,7 @@ class Spider(BaseSpider):
         # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
         self.IMAGE_BASE_URL = ""
         # 需要排除的分类ID集合:{34}
-        self.EXCLUDE_CATEGORIES = {55, 56, 57, 58, 59, 60, 61, 73, 74}
+        self.EXCLUDE_CATEGORIES = {51, 55, 56, 57, 58, 59, 60, 61, 73, 74}
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = []
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
