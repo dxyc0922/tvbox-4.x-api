@@ -35,17 +35,30 @@ class Spider(BaseSpider):
         self.YEAR_OPTIONS = None
         # 分类缓存，避免重复请求:初始化
         self.CATEGORY_CACHE = None
+        # 一级分类关键字，用于识别主分类
+        self.PRIMARY_CATEGORIES_KEYWORDS = [
+            '影视解说', '电影', '电视剧', '连续剧', '综艺', '动漫', '纪录片', '演唱会', '音乐', '体育赛事', '体育', '爽文短剧', '短剧大全']
+        # 二级分类映射，定义了主分类下的子分类关键字
+        self.SECONDARY_CATEGORIES_MAP = {
+            '电影': ['动作片', '喜剧片', '爱情片', '科幻片', '恐怖片', '剧情片', '战争片', '动画片', '4K电影', '邵氏电影', 'Netflix电影'],
+            '电视剧': ['国产剧', '台剧', '台湾剧', '韩剧', '韩国剧', '欧美剧', '港剧', '香港剧', '泰剧', '泰国剧', '日剧', '日本剧', '海外剧', 'Netflix自制剧'],
+            '连续剧': ['国产剧', '台剧', '台湾剧', '韩剧', '韩国剧', '欧美剧', '港剧', '香港剧', '泰剧', '泰国剧', '日剧', '日本剧', '海外剧', 'Netflix自制剧'],
+            '综艺': ['大陆综艺', '港台综艺', '日韩综艺', '欧美综艺'],
+            '动漫': ['国产动漫', '日韩动漫', '欧美动漫', '港台动漫', '海外动漫'],
+            '体育赛事': ['篮球', '足球', '斯诺克'],
+            '爽文短剧': ['有声动漫', '女频恋爱', '反转爽剧', '古装仙侠', '年代穿越', '脑洞悬疑', '现代都市']
+        }
 
     def _generate_year_options(self):
         """
         生成年份筛选选项
-        从当前年份到2010年，逐年递减生成筛选选项
+        从当前年份到2001年，逐年递减生成筛选选项
 
         Returns:
             list: 包含年份选项的列表，格式为[{"n": "显示名称", "v": "实际值"}]
         """
         current_year = int(time.strftime("%Y"))
-        year_range = range(current_year, 2010 - 1, -1)
+        year_range = range(current_year, 2000 - 1, -1)
         year_options = [{"n": "全部", "v": ""}]
         for year in year_range:
             year_options.append({"n": str(year), "v": str(year)})
@@ -136,9 +149,69 @@ class Spider(BaseSpider):
         """
         pass
 
+    def _categorize_without_pid(self, all_categories):
+        """
+        处理没有type_pid字段的分类数据，根据分类名称进行分类
+
+        Args:
+            all_categories (list): 原始分类数据列表
+
+        Returns:
+            tuple: (primary_categories, sub_categories_map)
+                - primary_categories: 主分类列表
+                - sub_categories_map: 子分类映射表，以主分类ID为键
+        """
+        primary_categories = []
+        sub_categories_map = {}
+
+        # 首先识别主分类
+        for cat in all_categories:
+            type_id = cat.get("type_id")
+            type_name = cat.get("type_name", "")
+
+            # 精准匹配主分类关键词
+            is_primary = type_name in self.PRIMARY_CATEGORIES_KEYWORDS
+
+            # 精准匹配二级分类映射中的键
+            is_primary_by_map = type_name in self.SECONDARY_CATEGORIES_MAP.keys()
+
+            if is_primary or is_primary_by_map:
+                primary_categories.append({
+                    "type_id": str(type_id),
+                    "type_name": type_name
+                })
+
+        # 然后建立子分类映射
+        for primary_cat in primary_categories:
+            primary_name = primary_cat["type_name"]
+            primary_id = primary_cat["type_id"]
+
+            # 检查该主分类下是否有子分类映射
+            if primary_name in self.SECONDARY_CATEGORIES_MAP:
+                sub_keywords = self.SECONDARY_CATEGORIES_MAP[primary_name]
+
+                # 查找该主分类下的子分类
+                sub_categories = []
+                for cat in all_categories:
+                    type_id = cat.get("type_id")
+                    type_name = cat.get("type_name", "")
+
+                    # 精准匹配子分类关键字
+                    if type_name in sub_keywords and str(type_id) != primary_id:
+                        sub_categories.append({
+                            "n": type_name,
+                            "v": str(type_id)
+                        })
+
+                if sub_categories:
+                    sub_categories_map[primary_id] = sub_categories
+
+        return primary_categories, sub_categories_map
+
     def _fetch_categories(self):
         """
         获取分类信息，包括主分类和子分类，并缓存结果
+        如果原始数据没有type_pid字段，则根据分类名称进行智能分类
 
         Returns:
             tuple: (primary_categories, sub_categories_map)
@@ -154,30 +227,42 @@ class Spider(BaseSpider):
             return [], {}
 
         all_categories = data["class"]
-        primary_categories = []
-        sub_categories_map = {}
 
-        for cat in all_categories:
-            if cat.get("type_id") in self.EXCLUDE_CATEGORIES:
-                continue
+        # 检查是否有type_pid字段，如果没有则使用智能分类
+        has_type_pid = any("type_pid" in cat for cat in all_categories)
 
-            type_id = cat.get("type_id")
-            type_pid = cat.get("type_pid", 0)
+        if has_type_pid:
+            # 有type_pid字段的处理方式
+            primary_categories = []
+            sub_categories_map = {}
 
-            if type_pid == 0:
-                primary_categories.append({
-                    "type_id": str(type_id),
-                    "type_name": cat["type_name"]
-                })
-            else:
-                pid_str = str(type_pid)
-                if pid_str not in sub_categories_map:
-                    sub_categories_map[pid_str] = []
-                sub_categories_map[pid_str].append(
-                    {"n": cat["type_name"], "v": str(type_id)})
+            for cat in all_categories:
+                type_id = cat.get("type_id")
+                type_pid = cat.get("type_pid", 0)
 
-        self.CATEGORY_CACHE = (primary_categories, sub_categories_map)
-        return primary_categories, sub_categories_map
+                if type_id in self.EXCLUDE_CATEGORIES:
+                    continue
+
+                if type_pid == 0:
+                    primary_categories.append({
+                        "type_id": str(type_id),
+                        "type_name": cat["type_name"]
+                    })
+                else:
+                    pid_str = str(type_pid)
+                    if pid_str not in sub_categories_map:
+                        sub_categories_map[pid_str] = []
+                    sub_categories_map[pid_str].append(
+                        {"n": cat["type_name"], "v": str(type_id)})
+
+            self.CATEGORY_CACHE = (primary_categories, sub_categories_map)
+            return primary_categories, sub_categories_map
+        else:
+            # 没有type_pid字段的处理方式，使用智能分类
+            primary_categories, sub_categories_map = self._categorize_without_pid(
+                all_categories)
+            self.CATEGORY_CACHE = (primary_categories, sub_categories_map)
+            return primary_categories, sub_categories_map
 
     def homeContent(self, filter):
         """
