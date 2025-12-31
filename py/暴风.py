@@ -236,7 +236,7 @@ class Spider(BaseSpider):
             if extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
 
-            params = {"ac": "detail", "tid": category_id, "page": pg}  # 修改为使用page参数
+            params = {"ac": "detail", "tid": category_id, "page": pg}
             
             if extend:
                 for key, value in extend.items():
