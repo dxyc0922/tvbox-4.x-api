@@ -1,4 +1,8 @@
-# 非凡资源站实现
+# coding=utf-8
+"""
+通用爬虫资源站实现
+该模板适用于实现基于通用API接口的资源站爬虫
+"""
 from base.spider import Spider as BaseSpider
 import time
 import json
@@ -8,31 +12,57 @@ sys.path.append('..')
 
 class Spider(BaseSpider):
     """
-    非凡资源站爬虫实现
-    API接口: http://api.ffzyapi.com/api.php/provide/vod/
+    通用爬虫资源站实现
+    该类提供了一个通用的爬虫模板，适用于具有标准API接口的视频资源站
     """
 
     def __init__(self):
         super().__init__()
+        # API接口地址:http://api.ffzyapi.com/api.php/provide/vod/
         self.API_URL = "http://api.ffzyapi.com/api.php/provide/vod/"
+        # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
+        self.IMAGE_BASE_URL = ""
+        # 需要排除的分类ID集合:{29, 73}
         self.EXCLUDE_CATEGORIES = {34}
-        self.USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
+        # 需要过滤的播放源关键词列表:feifan
+        self.FILTER_KEYWORDS = ['feifan']
+        # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
-            "User-Agent": self.USER_AGENT
-        }
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
+        # 年份选项列表，用于筛选:初始化
         self.YEAR_OPTIONS = None
+        # 分类缓存，避免重复请求:初始化
         self.CATEGORY_CACHE = None
-        self.SPIDER_NAME = "非凡资源站"
+        # 爬虫名称:非凡资源
+        self.SPIDER_NAME = "非凡资源"
 
     def _generate_year_options(self):
+        """
+        生成年份筛选选项
+        从当前年份到2010年，逐年递减生成筛选选项
+
+        Returns:
+            list: 包含年份选项的列表，格式为[{"n": "显示名称", "v": "实际值"}]
+        """
         current_year = int(time.strftime("%Y"))
-        year_range = range(current_year, 2000 - 1, -1)
+        year_range = range(current_year, 2010 - 1, -1)
         year_options = [{"n": "全部", "v": ""}]
         for year in year_range:
             year_options.append({"n": str(year), "v": str(year)})
         return year_options
 
     def _request_data(self, params, timeout=10, retries=3):
+        """
+        发送API请求并处理响应数据
+
+        Args:
+            params (dict): 请求参数
+            timeout (int): 请求超时时间（秒）
+            retries (int): 重试次数
+
+        Returns:
+            dict or None: 成功时返回解析后的数据，失败时返回None
+        """
         import time
         for attempt in range(retries):
             try:
@@ -58,10 +88,23 @@ class Spider(BaseSpider):
         return None
 
     def _build_video_object(self, item):
+        """
+        构建视频对象，处理视频信息
+
+        Args:
+            item (dict): 原始视频信息字典
+
+        Returns:
+            dict: 标准格式的视频信息字典
+        """
+        vod_pic = item.get("vod_pic", "")
+        if vod_pic and not vod_pic.startswith(('http://', 'https://')):
+            vod_pic = self.IMAGE_BASE_URL + "/" + vod_pic.lstrip('/')
+
         return {
             "vod_id": str(item["vod_id"]),
             "vod_name": item["vod_name"],
-            "vod_pic": item.get("vod_pic", ""),
+            "vod_pic": vod_pic,
             "vod_remarks": item.get("vod_remarks", ""),
             "vod_time": item.get("vod_time", ""),
             "vod_year": item.get("vod_year", ""),
@@ -74,12 +117,34 @@ class Spider(BaseSpider):
         }
 
     def getName(self):
+        """
+        获取爬虫名称
+
+        Returns:
+            str: 爬虫名称
+        """
         return self.SPIDER_NAME
 
     def init(self, extend=""):
+        """
+        初始化方法，需要在继承类中设置以下参数：
+        - self.API_URL
+        - self.IMAGE_BASE_URL
+        - self.EXCLUDE_CATEGORIES
+        - self.DEFAULT_HEADERS
+        - self.SPIDER_NAME
+        """
         pass
 
     def _fetch_categories(self):
+        """
+        获取分类信息，包括主分类和子分类，并缓存结果
+
+        Returns:
+            tuple: (primary_categories, sub_categories_map)
+                - primary_categories: 主分类列表
+                - sub_categories_map: 子分类映射表，以主分类ID为键
+        """
         if self.CATEGORY_CACHE:
             return self.CATEGORY_CACHE
 
@@ -115,6 +180,15 @@ class Spider(BaseSpider):
         return primary_categories, sub_categories_map
 
     def homeContent(self, filter):
+        """
+        获取首页内容，包括分类和筛选条件
+
+        Args:
+            filter (bool): 是否启用筛选条件
+
+        Returns:
+            dict: 包含分类和筛选条件的字典
+        """
         try:
             primary_categories, sub_categories_map = self._fetch_categories()
 
@@ -131,60 +205,40 @@ class Spider(BaseSpider):
             return {"class": [], "filters": {}}
 
     def _build_filter_options(self, sub_categories):
+        """
+        构建筛选选项，为每个子分类生成筛选条件
+
+        Args:
+            sub_categories (dict): 子分类映射表
+
+        Returns:
+            dict: 筛选选项配置
+        """
         if self.YEAR_OPTIONS is None:
             self.YEAR_OPTIONS = self._generate_year_options()
 
         filters = {}
 
-        if "1" in sub_categories:
-            filters["1"] = [
+        for cat_id, sub_cats in sub_categories.items():
+            filter_options = [
                 {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
-                    *sub_categories["1"]
-                ]},
-                {"key": "area", "name": "地区", "value": [
-                    {"n": "全部", "v": ""},
-                    {"n": "大陆", "v": "大陆"},
-                    {"n": "香港", "v": "香港"},
-                    {"n": "台湾", "v": "台湾"},
-                    {"n": "美国", "v": "美国"},
-                    {"n": "韩国", "v": "韩国"},
-                    {"n": "日本", "v": "日本"},
-                    {"n": "泰国", "v": "泰国"}
+                    *sub_cats
                 ]},
                 {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
             ]
 
-        if "2" in sub_categories:
-            filters["2"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["2"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        if "3" in sub_categories:
-            filters["3"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["3"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        if "4" in sub_categories:
-            filters["4"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["4"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
+            filters[cat_id] = filter_options
 
         return filters
 
     def homeVideoContent(self):
+        """
+        获取首页推荐视频内容
+
+        Returns:
+            dict: 包含推荐视频列表的字典
+        """
         try:
             params = {
                 "ac": "detail",
@@ -209,6 +263,18 @@ class Spider(BaseSpider):
             return {"list": []}
 
     def categoryContent(self, tid, pg, filter, extend):
+        """
+        获取分类内容
+
+        Args:
+            tid (str): 分类ID
+            pg (str): 页码
+            filter (bool): 是否启用筛选
+            extend (dict): 扩展参数
+
+        Returns:
+            dict: 包含分类视频列表和分页信息的字典
+        """
         try:
             category_id = tid
             if extend and 'type_id' in extend and extend['type_id']:
@@ -246,6 +312,17 @@ class Spider(BaseSpider):
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
     def _get_subcategory_data(self, tid, pg, extend):
+        """
+        获取子分类数据，当主分类下有子分类时使用此方法
+
+        Args:
+            tid (str): 主分类ID
+            pg (str): 页码
+            extend (dict): 扩展参数
+
+        Returns:
+            dict: 包含子分类视频列表和分页信息的字典
+        """
         try:
             _, sub_categories_map = self._fetch_categories()
 
@@ -258,6 +335,15 @@ class Spider(BaseSpider):
             import concurrent.futures
 
             def fetch_subcategory_videos(sub_cat):
+                """
+                获取单个子分类的视频数据
+
+                Args:
+                    sub_cat (dict): 子分类信息
+
+                Returns:
+                    list: 视频列表
+                """
                 sub_tid = sub_cat['v']
                 params = {"ac": "detail", "t": sub_tid, "pg": pg}
                 if extend:
@@ -303,27 +389,16 @@ class Spider(BaseSpider):
         except Exception as e:
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
-    def _filter_play_sources(self, play_from, play_url):
-        if not play_from or not play_url:
-            return play_from, play_url
-
-        from_list = play_from.split("$$$")
-        url_list = play_url.split("$$$")
-
-        filtered_pairs = [
-            (source, url_list[i])
-            for i, source in enumerate(from_list)
-            if i < len(url_list) and 'feifan' not in source.lower()
-        ]
-
-        if not filtered_pairs:
-            return play_from, play_url
-
-        filtered_from_list, filtered_url_list = zip(
-            *filtered_pairs) if filtered_pairs else ([], [])
-        return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
-
     def detailContent(self, ids):
+        """
+        获取视频详情
+
+        Args:
+            ids (list): 视频ID列表
+
+        Returns:
+            dict: 包含视频详细信息的字典
+        """
         try:
             if not ids:
                 return {"list": []}
@@ -360,8 +435,20 @@ class Spider(BaseSpider):
             return {"list": []}
 
     def searchContent(self, key, quick, pg="1"):
+        """
+        搜索视频内容
+
+        Args:
+            key (str): 搜索关键词
+            quick (bool): 是否快速搜索
+            pg (str): 页码，默认为"1"
+
+        Returns:
+            dict: 包含搜索结果和分页信息的字典
+        """
         try:
-            data = self._request_data({"ac": "detail", "wd": key, "pg": pg})
+            params = {"ac": "detail", "wd": key, "pg": pg}
+            data = self._request_data(params)
             if not data:
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
@@ -392,7 +479,51 @@ class Spider(BaseSpider):
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
 
     def playerContent(self, flag, id, vipFlags):
+        """
+        获取播放地址
+
+        Args:
+            flag (str): 播放来源标识
+            id (str): 视频ID
+            vipFlags (list): VIP标识列表
+
+        Returns:
+            dict: 包含播放地址和相关参数的字典
+        """
         return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
+        """
+        销毁爬虫实例，释放资源
+        """
         pass
+
+    def _filter_play_sources(self, play_from, play_url):
+        """
+        过滤播放源，移除不需要的播放源
+
+        Args:
+            play_from (str): 播放源字符串，使用"$$$"分隔
+            play_url (str): 播放地址字符串，使用"$$$"分隔
+
+        Returns:
+            tuple: (filtered_play_from, filtered_play_url) 过滤后的播放源和播放地址
+        """
+        if not play_from or not play_url:
+            return play_from, play_url
+
+        from_list = play_from.split("$$$")
+        url_list = play_url.split("$$$")
+
+        filtered_pairs = [
+            (source, url_list[i])
+            for i, source in enumerate(from_list)
+            if i < len(url_list) and not any(keyword in source.lower() for keyword in self.FILTER_KEYWORDS)
+        ]
+
+        if not filtered_pairs:
+            return play_from, play_url
+
+        filtered_from_list, filtered_url_list = zip(
+            *filtered_pairs) if filtered_pairs else ([], [])
+        return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
