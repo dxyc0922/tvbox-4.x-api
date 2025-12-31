@@ -126,7 +126,7 @@ class Spider(BaseSpider):
                     "type_name": cat["type_name"]
                 })
             # 收集子分类
-            elif type_pid in (1, 2, 3, 4):
+            else:
                 pid_str = str(type_pid)
                 if pid_str not in sub_categories_map:
                     sub_categories_map[pid_str] = []
@@ -192,16 +192,35 @@ class Spider(BaseSpider):
                 {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
             ]
 
-        # 为连续剧、综艺和动漫单独构建筛选项
-        for cat_id in ["2", "3", "4"]:
-            if cat_id in sub_categories:
-                filters[cat_id] = [
-                    {"key": "class", "name": "类型", "value": [
-                        {"n": "全部", "v": ""},
-                        *sub_categories[cat_id]  # 使用各自分类的二级分类
-                    ]},
-                    {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-                ]
+        # 连续剧筛选
+        if "2" in sub_categories:
+            filters["2"] = [
+                {"key": "class", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["2"]  # 连续剧的二级分类
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        # 综艺片筛选
+        if "3" in sub_categories:
+            filters["3"] = [
+                {"key": "class", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["3"]  # 综艺片的二级分类
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        # 动漫片筛选
+        if "4" in sub_categories:
+            filters["4"] = [
+                {"key": "class", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["4"]  # 动漫片的二级分类
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
 
         return filters
 
