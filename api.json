@@ -1,40 +1,40 @@
 {
     "sites": [
         {
-            "key": "非凡",
-            "name": "非凡",
+            "key": "非凡资源",
+            "name": "非凡资源",
             "type": 3,
-            "api": "./py/非凡.py",
+            "api": "./py/非凡资源.py",
             "searchable": 1,
             "quickSearch": 1,
             "filterable": 1,
             "changeable": 1
         },
         {
-            "key": "暴风",
-            "name": "暴风",
+            "key": "暴风资源",
+            "name": "暴风资源",
             "type": 3,
-            "api": "./py/暴风.py",
+            "api": "./py/暴风资源.py",
             "searchable": 1,
             "quickSearch": 1,
             "filterable": 1,
             "changeable": 1
         },
         {
-            "key": "优质",
-            "name": "优质",
+            "key": "优质资源",
+            "name": "优质资源",
             "type": 3,
-            "api": "./py/优质.py",
+            "api": "./py/优质资源.py",
             "searchable": 1,
             "quickSearch": 1,
             "filterable": 1,
             "changeable": 1
         },
         {
-            "key": "最大",
-            "name": "最大",
+            "key": "最大资源",
+            "name": "最大资源",
             "type": 3,
-            "api": "./py/最大.py",
+            "api": "./py/最大资源.py",
             "searchable": 1,
             "quickSearch": 1,
             "filterable": 1,

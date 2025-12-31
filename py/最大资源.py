@@ -18,14 +18,16 @@ class Spider(BaseSpider):
 
     def __init__(self):
         super().__init__()
+        # 爬虫名称:非凡资源
+        self.SPIDER_NAME = "最大资源"
         # API接口地址:http://api.ffzyapi.com/api.php/provide/vod/
-        self.API_URL = "http://api.ffzyapi.com/api.php/provide/vod/"
+        self.API_URL = "https://api.zuidapi.com/api.php/provide/vod/"
+        # 需要排除的分类ID集合:{34}
+        self.EXCLUDE_CATEGORIES = {55, 56, 57, 58, 59, 60, 61, 73, 74}
         # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
         self.IMAGE_BASE_URL = ""
-        # 需要排除的分类ID集合:{29, 73}
-        self.EXCLUDE_CATEGORIES = {34}
         # 需要过滤的播放源关键词列表:feifan
-        self.FILTER_KEYWORDS = ['feifan']
+        self.FILTER_KEYWORDS = []
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
@@ -33,8 +35,6 @@ class Spider(BaseSpider):
         self.YEAR_OPTIONS = None
         # 分类缓存，避免重复请求:初始化
         self.CATEGORY_CACHE = None
-        # 爬虫名称:非凡资源
-        self.SPIDER_NAME = "非凡资源"
 
     def _generate_year_options(self):
         """
