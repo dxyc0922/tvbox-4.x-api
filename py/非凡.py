@@ -255,7 +255,7 @@ class Spider(BaseSpider):
             params = {"ac": "detail", "t": tid, "pg": pg}
             if extend:
                 for key, value in extend.items():
-                    if key != "class" and value:
+                    if value:  # 只要值不为空，就添加到参数中
                         params[key] = value
 
             data = self._request_data(params)
