@@ -1,29 +1,28 @@
-# 暴风资源站实现
+# 通用爬虫资源站实现
+from base.spider import Spider as BaseSpider
+import time
+import json
 import sys
 sys.path.append('..')
-import json
-import time
-from base.spider import Spider as BaseSpider
 
 
 class Spider(BaseSpider):
     """
-    暴风资源站爬虫实现
-    API接口: https://bfzyapi.com/api.php/provide/vod/
+    通用爬虫资源站实现
+    通过初始化参数配置不同资源站的API信息
     """
 
     def __init__(self):
         super().__init__()
-        self.API_URL = "https://bfzyapi.com/api.php/provide/vod/"
-        self.IMAGE_BASE_URL = "https://img.picbf.com"  # 暴风图床地址
-        self.EXCLUDE_CATEGORIES = {29, 73}  # 过滤掉理论片和福利分类
-        self.USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
-        self.DEFAULT_HEADERS = {
-            "User-Agent": self.USER_AGENT
-        }
-        self.YEAR_OPTIONS = None
-        self.CATEGORY_CACHE = None
-        self.SPIDER_NAME = "暴风资源站"
+        # 以下参数将在init方法中设置
+        self.API_URL = "http://api.ffzyapi.com/api.php/provide/vod/"  # API地址
+        self.HAS_IMAGE_PROCESSING = False  # 是否有图床地址
+        self.IMAGE_BASE_URL = "" # 图床地址
+        self.EXCLUDE_CATEGORIES = {34}  # 排除的分类ID
+        self.DEFAULT_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}  # 请求头
+        self.YEAR_OPTIONS = None  # 年份选项
+        self.CATEGORY_CACHE = None  # 分类缓存
+        self.SPIDER_NAME = "非凡资源站"  # 爬虫名称
 
     def _generate_year_options(self):
         current_year = int(time.strftime("%Y"))
@@ -37,7 +36,8 @@ class Spider(BaseSpider):
         import time
         for attempt in range(retries):
             try:
-                response = self.fetch(self.API_URL, params=params, headers=self.DEFAULT_HEADERS, timeout=timeout)
+                response = self.fetch(
+                    self.API_URL, params=params, headers=self.DEFAULT_HEADERS, timeout=timeout)
                 if response.status_code == 200:
                     data = json.loads(response.text)
                     if data is not None:
@@ -51,16 +51,16 @@ class Spider(BaseSpider):
                 pass
             except Exception as e:
                 pass
-            
+
             if attempt < retries - 1:
                 time.sleep(0.5)
-        
+
         return None
 
     def _build_video_object(self, item):
-        # 处理相对路径的图片地址
+        # 如果需要处理图片路径
         vod_pic = item.get("vod_pic", "")
-        if vod_pic and not vod_pic.startswith(('http://', 'https://')):
+        if self.HAS_IMAGE_PROCESSING and vod_pic and not vod_pic.startswith(('http://', 'https://')):
             vod_pic = self.IMAGE_BASE_URL + "/" + vod_pic.lstrip('/')
 
         return {
@@ -82,6 +82,15 @@ class Spider(BaseSpider):
         return self.SPIDER_NAME
 
     def init(self, extend=""):
+        """
+        初始化方法，需要在继承类中设置以下参数：
+        - self.API_URL
+        - self.IMAGE_BASE_URL (如果需要图片处理)
+        - self.EXCLUDE_CATEGORIES
+        - self.DEFAULT_HEADERS
+        - self.SPIDER_NAME
+        - self.HAS_IMAGE_PROCESSING
+        """
         pass
 
     def _fetch_categories(self):
@@ -104,24 +113,25 @@ class Spider(BaseSpider):
             if type_id in self.EXCLUDE_CATEGORIES:
                 continue
 
-            if type_pid == 0:
+            if type_pid == 0:  # 一级分类
                 primary_categories.append({
                     "type_id": str(type_id),
                     "type_name": cat["type_name"]
                 })
-            else:
+            else:  # 子分类
                 pid_str = str(type_pid)
                 if pid_str not in sub_categories_map:
                     sub_categories_map[pid_str] = []
-                sub_categories_map[pid_str].append({"n": cat["type_name"], "v": str(type_id)})
-        
+                sub_categories_map[pid_str].append(
+                    {"n": cat["type_name"], "v": str(type_id)})
+
         self.CATEGORY_CACHE = (primary_categories, sub_categories_map)
         return primary_categories, sub_categories_map
 
     def homeContent(self, filter):
         try:
             primary_categories, sub_categories_map = self._fetch_categories()
-            
+
             filters = {}
             if filter:
                 filters = self._build_filter_options(sub_categories_map)
@@ -137,72 +147,20 @@ class Spider(BaseSpider):
     def _build_filter_options(self, sub_categories):
         if self.YEAR_OPTIONS is None:
             self.YEAR_OPTIONS = self._generate_year_options()
-            
+
         filters = {}
 
-        if "20" in sub_categories:
-            filters["20"] = [
+        # 为所有主分类动态构建筛选选项，仅包含类型和年份筛选
+        for cat_id, sub_cats in sub_categories.items():
+            filter_options = [
                 {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
-                    *sub_categories["20"]
-                ]},
-                {"key": "area", "name": "地区", "value": [
-                    {"n": "全部", "v": ""},
-                    {"n": "大陆", "v": "大陆"},
-                    {"n": "香港", "v": "香港"},
-                    {"n": "台湾", "v": "台湾"},
-                    {"n": "美国", "v": "美国"},
-                    {"n": "韩国", "v": "韩国"},
-                    {"n": "日本", "v": "日本"},
-                    {"n": "泰国", "v": "泰国"}
+                    *sub_cats
                 ]},
                 {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
             ]
-
-        if "30" in sub_categories:
-            filters["30"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["30"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        if "39" in sub_categories:
-            filters["39"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["39"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        if "45" in sub_categories:
-            filters["45"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["45"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-
-        if "53" in sub_categories:
-            filters["53"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["53"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
-        
-        if "58" in sub_categories:
-            filters["58"] = [
-                {"key": "type_id", "name": "类型", "value": [
-                    {"n": "全部", "v": ""},
-                    *sub_categories["58"]
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
-            ]
+            
+            filters[cat_id] = filter_options
 
         return filters
 
@@ -237,7 +195,7 @@ class Spider(BaseSpider):
                 category_id = extend['type_id']
 
             params = {"ac": "detail", "t": category_id, "pg": pg}
-            
+
             if extend:
                 for key, value in extend.items():
                     if key != 't' and key != 'type_id' and value:
@@ -270,23 +228,23 @@ class Spider(BaseSpider):
     def _get_subcategory_data(self, tid, pg, extend):
         try:
             _, sub_categories_map = self._fetch_categories()
-            
+
             if tid not in sub_categories_map:
                 return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
-            
+
             sub_categories = sub_categories_map[tid]
             all_videos = []
-            
+
             import concurrent.futures
-            
+
             def fetch_subcategory_videos(sub_cat):
                 sub_tid = sub_cat['v']
-                params = {"ac": "detail", "t": sub_tid, "pg": pg}  # 修改为使用page参数
+                params = {"ac": "detail", "t": sub_tid, "pg": pg}
                 if extend:
                     for key, value in extend.items():
-                        if key != 'tid' and key != 'type_id' and value:
+                        if key != 't' and key != 'type_id' and value:
                             params[key] = value
-                
+
                 sub_data = self._request_data(params)
                 if sub_data and "list" in sub_data and sub_data["list"]:
                     return [
@@ -295,23 +253,24 @@ class Spider(BaseSpider):
                         if item.get("type_id") not in self.EXCLUDE_CATEGORIES
                     ]
                 return []
-            
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-                futures = [executor.submit(fetch_subcategory_videos, sub_cat) for sub_cat in sub_categories]
+                futures = [executor.submit(
+                    fetch_subcategory_videos, sub_cat) for sub_cat in sub_categories]
                 for future in concurrent.futures.as_completed(futures):
                     sub_videos = future.result()
                     all_videos.extend(sub_videos)
-            
+
             all_videos.sort(key=lambda x: x.get('vod_time', ''), reverse=True)
-            
+
             total = len(all_videos)
             limit = 20
             pagecount = (total + limit - 1) // limit
-            
+
             start_idx = (int(pg) - 1) * limit
             end_idx = start_idx + limit
             paged_videos = all_videos[start_idx:end_idx]
-            
+
             result = {
                 "list": paged_videos,
                 "page": int(pg),
@@ -319,7 +278,7 @@ class Spider(BaseSpider):
                 "limit": limit,
                 "total": total
             }
-            
+
             return result
         except Exception as e:
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
@@ -342,10 +301,10 @@ class Spider(BaseSpider):
                     continue
 
                 detail = self._build_video_object(item)
-                
+
                 play_from = item.get("vod_play_from", "")
                 play_url = item.get("vod_play_url", "")
-                
+
                 detail.update({
                     "vod_play_from": play_from,
                     "vod_play_url": play_url
