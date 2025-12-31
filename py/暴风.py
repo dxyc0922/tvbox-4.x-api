@@ -140,19 +140,13 @@ class Spider(BaseSpider):
             
         filters = {}
 
-        # 通用筛选项构建，适用于所有主分类
-        for main_cat_id in sub_categories:
-            # 为每个有子分类的主分类添加筛选项
-            filters[main_cat_id] = [
-                {"key": "type_id", "name": "类型", "value": [  # 修改为使用type_id
+        if "20" in sub_categories:
+            filters["20"] = [
+                {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
-                    *sub_categories[main_cat_id]  # 该主分类下的所有子分类
-                ]}
-            ]
-            
-            # 根据主分类添加特定的筛选项
-            if main_cat_id in ["20", "1"]:  # 电影片
-                filters[main_cat_id].append({"key": "area", "name": "地区", "value": [
+                    *sub_categories["20"]
+                ]},
+                {"key": "area", "name": "地区", "value": [
                     {"n": "全部", "v": ""},
                     {"n": "大陆", "v": "大陆"},
                     {"n": "香港", "v": "香港"},
@@ -161,10 +155,54 @@ class Spider(BaseSpider):
                     {"n": "韩国", "v": "韩国"},
                     {"n": "日本", "v": "日本"},
                     {"n": "泰国", "v": "泰国"}
-                ]})
-            
-            # 所有分类都添加年份筛选
-            filters[main_cat_id].append({"key": "year", "name": "年份", "value": self.YEAR_OPTIONS})
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        if "30" in sub_categories:
+            filters["30"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["30"]
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        if "39" in sub_categories:
+            filters["39"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["39"]
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        if "45" in sub_categories:
+            filters["45"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["45"]
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+
+        if "53" in sub_categories:
+            filters["53"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["53"]
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
+        
+        if "58" in sub_categories:
+            filters["58"] = [
+                {"key": "type_id", "name": "类型", "value": [
+                    {"n": "全部", "v": ""},
+                    *sub_categories["58"]
+                ]},
+                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+            ]
 
         return filters
 
