@@ -240,7 +240,7 @@ class Spider(BaseSpider):
             
             if extend:
                 for key, value in extend.items():
-                    if key != 'tid' and key != 'type_id' and value:
+                    if key != 't' and key != 'type_id' and value:
                         params[key] = value
 
             data = self._request_data(params)
