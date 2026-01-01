@@ -812,8 +812,6 @@ class Spider(BaseSpider):
                 if not is_filtered:
                     filtered_lines.append(line)
             
-            self.log(f"处理M3U8内容，过滤广告")
-
             return '\n'.join(filtered_lines)
 
     def localProxy(self, params):
@@ -828,4 +826,5 @@ class Spider(BaseSpider):
         """
         url = params.get('url', '')
         content = self.del_ads(url)
+        self.log(f"处理M3U8内容，过滤广告{content}")
         return [200, 'application/vnd.apple.mpegurl', content]
