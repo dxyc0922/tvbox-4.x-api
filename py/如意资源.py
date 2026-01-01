@@ -350,6 +350,31 @@ class Spider(BaseSpider):
             dict: 包含推荐视频列表的字典
         """
         try:
+            # 优先使用AJAX接口获取数据
+            ajax_data = self._request_ajax_data("0", "1", limit=30)
+            if ajax_data and "list" in ajax_data and ajax_data["list"]:
+                videos = [
+                    self._build_video_object(item)
+                    for item in ajax_data.get("list", [])
+                    if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                ]
+                # 如果AJAX数据少于10条，尝试使用API接口补充
+                if len(videos) < 10:
+                    params = {"ac": "detail", "pg": "1"}
+                    api_data = self._request_data(params)
+                    if api_data and "list" in api_data and api_data["list"]:
+                        api_videos = [
+                            self._build_video_object(item)
+                            for item in api_data.get("list", [])
+                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                        ]
+                        # 优先使用API数据，因为数量可能更多
+                        if len(api_videos) > len(videos):
+                            return {"list": api_videos}
+                
+                return {"list": videos}
+
+            # 如果AJAX接口没有返回数据，再尝试使用API接口
             params = {
                 "ac": "detail",
                 "pg": "1"
@@ -390,6 +415,37 @@ class Spider(BaseSpider):
             if filter and extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
 
+            # 优先使用AJAX接口获取数据
+            ajax_data = self._request_ajax_data(category_id, pg)
+            if ajax_data:
+                # 如果AJAX数据少于10条，尝试使用API接口
+                if len(ajax_data.get("list", [])) < 10:
+                    params = {"ac": "detail", "t": category_id, "pg": pg}
+                    if filter and extend:
+                        for key, value in extend.items():
+                            if key != 't' and key != 'type_id' and value:
+                                params[key] = value
+
+                    api_data = self._request_data(params)
+                    if api_data and "list" in api_data and api_data["list"]:
+                        # 优先使用API数据
+                        videos = [
+                            self._build_video_object(item)
+                            for item in api_data.get("list", [])
+                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                        ]
+                        result = {
+                            "list": videos,
+                            "page": int(api_data.get("page", pg)),
+                            "pagecount": int(api_data.get("pagecount", 1)),
+                            "limit": int(api_data.get("limit", 20)),
+                            "total": int(api_data.get("total", 0))
+                        }
+                        return result
+                # 返回AJAX数据
+                return self._process_ajax_response(ajax_data, pg)
+
+            # 如果AJAX接口没有返回数据，再尝试使用API接口
             params = {"ac": "detail", "t": category_id, "pg": pg}
 
             if filter and extend:
@@ -399,22 +455,12 @@ class Spider(BaseSpider):
 
             data = self._request_data(params)
             if not data:
-                # 如果API接口没有返回数据，尝试使用AJAX接口
-                ajax_data = self._request_ajax_data(category_id, pg)
-                if ajax_data:
-                    return self._process_ajax_response(ajax_data, pg)
-                else:
-                    # 如果AJAX接口也没有数据，再尝试获取子分类数据
-                    return self._get_subcategory_data(tid, pg, extend if filter else {})
+                # 如果API接口也没有数据，再尝试获取子分类数据
+                return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             if "list" not in data or not data["list"]:
-                # 如果API接口返回的数据没有列表，尝试使用AJAX接口
-                ajax_data = self._request_ajax_data(category_id, pg)
-                if ajax_data:
-                    return self._process_ajax_response(ajax_data, pg)
-                else:
-                    # 如果AJAX接口也没有数据，再尝试获取子分类数据
-                    return self._get_subcategory_data(tid, pg, extend if filter else {})
+                # 如果API接口返回的数据没有列表，再尝试获取子分类数据
+                return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             videos = [
                 self._build_video_object(item)
@@ -431,7 +477,7 @@ class Spider(BaseSpider):
             }
             return result
         except Exception as e:
-            # 如果API接口出错，尝试使用AJAX接口
+            # 如果所有方法都失败，尝试使用AJAX接口作为最后手段
             try:
                 ajax_data = self._request_ajax_data(tid, pg)
                 if ajax_data:

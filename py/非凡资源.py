@@ -36,16 +36,20 @@ class Spider(BaseSpider):
         self.CATEGORY_CACHE = None
         # 一级分类关键字，用于识别主分类
         self.PRIMARY_CATEGORIES_KEYWORDS = [
-            '影视解说', '电影', '电视剧', '连续剧', '综艺', '动漫', '纪录片', '演唱会', '音乐', '体育赛事', '体育', '爽文短剧', '短剧大全']
+            '影视解说', '电影解说', '电影', '电影片', '电视剧', '连续剧', '综艺', '动漫', '纪录片', '演唱会', '音乐', '体育', '体育赛事', '短剧', '爽文短剧', '短剧大全']
         # 二级分类映射，定义了主分类下的子分类关键字
         self.SECONDARY_CATEGORIES_MAP = {
-            '电影': ['动作片', '喜剧片', '爱情片', '科幻片', '恐怖片', '剧情片', '战争片', '动画片', '4K电影', '邵氏电影', 'Netflix电影'],
+            '电影': ['动作片', '喜剧片', '爱情片', '科幻片', '恐怖片', '剧情片', '战争片', '动画片', '动画电影', '4K电影', '邵氏电影', 'Netflix电影'],
+            '电影片': ['动作片', '喜剧片', '爱情片', '科幻片', '恐怖片', '剧情片', '战争片', '动画片', '动画电影', '4K电影', '邵氏电影', 'Netflix电影'],
             '电视剧': ['国产剧', '台剧', '台湾剧', '韩剧', '韩国剧', '欧美剧', '港剧', '香港剧', '泰剧', '泰国剧', '日剧', '日本剧', '海外剧', 'Netflix自制剧'],
             '连续剧': ['国产剧', '台剧', '台湾剧', '韩剧', '韩国剧', '欧美剧', '港剧', '香港剧', '泰剧', '泰国剧', '日剧', '日本剧', '海外剧', 'Netflix自制剧'],
             '综艺': ['大陆综艺', '港台综艺', '日韩综艺', '欧美综艺'],
             '动漫': ['国产动漫', '日韩动漫', '欧美动漫', '港台动漫', '海外动漫'],
-            '体育赛事': ['篮球', '足球', '斯诺克'],
-            '爽文短剧': ['有声动漫', '女频恋爱', '反转爽剧', '古装仙侠', '年代穿越', '脑洞悬疑', '现代都市']
+            '体育': ['篮球', '足球', '斯诺克', '网球'],
+            '体育赛事': ['篮球', '足球', '斯诺克', '网球'],
+            '短剧': ['有声动漫', '女频恋爱', '反转爽剧', '古装仙侠', '年代穿越', '脑洞悬疑', '现代都市'],
+            '爽文短剧': ['有声动漫', '女频恋爱', '反转爽剧', '古装仙侠', '年代穿越', '脑洞悬疑', '现代都市'],
+            '短剧大全': ['有声动漫', '女频恋爱', '反转爽剧', '古装仙侠', '年代穿越', '脑洞悬疑', '现代都市']
         }
 
     def _request_data(self, params, timeout=10, retries=3):
@@ -103,7 +107,7 @@ class Spider(BaseSpider):
             "page": pg,
             "limit": limit
         }
-        
+
         for attempt in range(3):
             try:
                 response = self.fetch(
@@ -346,6 +350,31 @@ class Spider(BaseSpider):
             dict: 包含推荐视频列表的字典
         """
         try:
+            # 优先使用AJAX接口获取数据
+            ajax_data = self._request_ajax_data("0", "1", limit=30)
+            if ajax_data and "list" in ajax_data and ajax_data["list"]:
+                videos = [
+                    self._build_video_object(item)
+                    for item in ajax_data.get("list", [])
+                    if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                ]
+                # 如果AJAX数据少于10条，尝试使用API接口补充
+                if len(videos) < 10:
+                    params = {"ac": "detail", "pg": "1"}
+                    api_data = self._request_data(params)
+                    if api_data and "list" in api_data and api_data["list"]:
+                        api_videos = [
+                            self._build_video_object(item)
+                            for item in api_data.get("list", [])
+                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                        ]
+                        # 优先使用API数据，因为数量可能更多
+                        if len(api_videos) > len(videos):
+                            return {"list": api_videos}
+                
+                return {"list": videos}
+
+            # 如果AJAX接口没有返回数据，再尝试使用API接口
             params = {
                 "ac": "detail",
                 "pg": "1"
@@ -386,6 +415,37 @@ class Spider(BaseSpider):
             if filter and extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
 
+            # 优先使用AJAX接口获取数据
+            ajax_data = self._request_ajax_data(category_id, pg)
+            if ajax_data:
+                # 如果AJAX数据少于10条，尝试使用API接口
+                if len(ajax_data.get("list", [])) < 10:
+                    params = {"ac": "detail", "t": category_id, "pg": pg}
+                    if filter and extend:
+                        for key, value in extend.items():
+                            if key != 't' and key != 'type_id' and value:
+                                params[key] = value
+
+                    api_data = self._request_data(params)
+                    if api_data and "list" in api_data and api_data["list"]:
+                        # 优先使用API数据
+                        videos = [
+                            self._build_video_object(item)
+                            for item in api_data.get("list", [])
+                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                        ]
+                        result = {
+                            "list": videos,
+                            "page": int(api_data.get("page", pg)),
+                            "pagecount": int(api_data.get("pagecount", 1)),
+                            "limit": int(api_data.get("limit", 20)),
+                            "total": int(api_data.get("total", 0))
+                        }
+                        return result
+                # 返回AJAX数据
+                return self._process_ajax_response(ajax_data, pg)
+
+            # 如果AJAX接口没有返回数据，再尝试使用API接口
             params = {"ac": "detail", "t": category_id, "pg": pg}
 
             if filter and extend:
@@ -395,22 +455,12 @@ class Spider(BaseSpider):
 
             data = self._request_data(params)
             if not data:
-                # 如果API接口没有返回数据，尝试使用AJAX接口
-                ajax_data = self._request_ajax_data(category_id, pg)
-                if ajax_data:
-                    return self._process_ajax_response(ajax_data, pg)
-                else:
-                    # 如果AJAX接口也没有数据，再尝试获取子分类数据
-                    return self._get_subcategory_data(tid, pg, extend if filter else {})
+                # 如果API接口也没有数据，再尝试获取子分类数据
+                return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             if "list" not in data or not data["list"]:
-                # 如果API接口返回的数据没有列表，尝试使用AJAX接口
-                ajax_data = self._request_ajax_data(category_id, pg)
-                if ajax_data:
-                    return self._process_ajax_response(ajax_data, pg)
-                else:
-                    # 如果AJAX接口也没有数据，再尝试获取子分类数据
-                    return self._get_subcategory_data(tid, pg, extend if filter else {})
+                # 如果API接口返回的数据没有列表，再尝试获取子分类数据
+                return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             videos = [
                 self._build_video_object(item)
@@ -427,7 +477,7 @@ class Spider(BaseSpider):
             }
             return result
         except Exception as e:
-            # 如果API接口出错，尝试使用AJAX接口
+            # 如果所有方法都失败，尝试使用AJAX接口作为最后手段
             try:
                 ajax_data = self._request_ajax_data(tid, pg)
                 if ajax_data:
@@ -678,14 +728,14 @@ class Spider(BaseSpider):
         filtered_from_list, filtered_url_list = zip(
             *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
-        
+
     def b64encode(self, data):
         """
         base64编码
-        
+
         Args:
             data (str): 需要编码的字符串
-        
+
         Returns:
             str: base64编码后的字符串
         """
@@ -695,10 +745,10 @@ class Spider(BaseSpider):
     def b64decode(self, data):
         """
         base64解码
-        
+
         Args:
             data (str): 需要解码的字符串
-        
+
         Returns:
             str: base64解码后的字符串
         """
@@ -708,10 +758,10 @@ class Spider(BaseSpider):
     def del_ads(self, url):
         """
         去广告逻辑，解析M3U8播放列表并过滤广告片段
-        
+
         Args:
             url (str): M3U8播放地址
-        
+
         Returns:
             str: 过滤广告后的播放内容
         """
@@ -721,18 +771,18 @@ class Spider(BaseSpider):
 
         headers = self.DEFAULT_HEADERS
         response = requests.get(url=url, headers=headers)
-        
+
         if response.status_code != 200:
             return ''
-        
+
         lines = response.text.splitlines()
-        
+
         # 检查是否是M3U8格式，并且是否有混合内容
         if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
             # 解析当前URL的协议和域名部分
             parsed_url = parse.urlparse(url)
             base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-            
+
             # 确定新的URL
             next_url = lines[2]
             if next_url.startswith('http'):  # 完整URL
@@ -742,14 +792,14 @@ class Spider(BaseSpider):
             else:  # 相对于当前路径
                 current_path = url.rsplit('/', maxsplit=1)[0] + '/'
                 new_url = current_path + next_url
-            
+
             # 递归处理
             return self.del_ads(new_url)
         else:
             # 处理M3U8内容，过滤广告
             result_lines = []
             discontinuity_indices = []
-            
+
             for i, line in enumerate(lines):
                 if '.ts' in line:
                     # 处理.ts文件路径
@@ -767,33 +817,37 @@ class Spider(BaseSpider):
                     discontinuity_indices.append(i)
                 else:
                     result_lines.append(line)
-            
+
             # 根据不连续点的索引确定需要过滤的范围
             filter_ranges = []
             if len(discontinuity_indices) >= 1:
-                filter_ranges.append((discontinuity_indices[0], discontinuity_indices[0]))
+                filter_ranges.append(
+                    (discontinuity_indices[0], discontinuity_indices[0]))
             if len(discontinuity_indices) >= 3:
-                filter_ranges.append((discontinuity_indices[1], discontinuity_indices[2]))
+                filter_ranges.append(
+                    (discontinuity_indices[1], discontinuity_indices[2]))
             if len(discontinuity_indices) >= 5:
-                filter_ranges.append((discontinuity_indices[3], discontinuity_indices[4]))
-            
+                filter_ranges.append(
+                    (discontinuity_indices[3], discontinuity_indices[4]))
+
             # 过滤掉指定范围内的内容
             filtered_lines = []
             for i, line in enumerate(result_lines):
                 # 检查当前索引是否在任何过滤范围内
-                is_filtered = any(start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
+                is_filtered = any(
+                    start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
                 if not is_filtered:
                     filtered_lines.append(line)
-            
+
             return '\n'.join(filtered_lines)
 
     def localProxy(self, params):
         """
         本地代理方法，用于处理播放地址的去广告
-        
+
         Args:
             params (dict): 代理参数
-        
+
         Returns:
             list: 代理响应结果
         """
