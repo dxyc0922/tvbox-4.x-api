@@ -373,7 +373,7 @@ class Spider(BaseSpider):
                         # 优先使用API数据，因为数量可能更多
                         if len(api_videos) > len(videos):
                             return {"list": api_videos}
-
+                
                 return {"list": videos}
 
             # 如果AJAX接口没有返回数据，再尝试使用API接口
@@ -693,10 +693,11 @@ class Spider(BaseSpider):
             dict: 包含播放地址和相关参数的字典
         """
         if self.USE_PROXY:
-            proxy_url = self.getProxyUrl() + f"&url={id}"
+            proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
             return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
         else:
-            return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
+            proxy_url = self.b64encode(id)
+            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 1, 'jx': 0}
 
     def destroy(self):
         """
@@ -733,6 +734,32 @@ class Spider(BaseSpider):
         filtered_from_list, filtered_url_list = zip(
             *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
+
+    def b64encode(self, data):
+        """
+        base64编码
+
+        Args:
+            data (str): 需要编码的字符串
+
+        Returns:
+            str: base64编码后的字符串
+        """
+        import base64
+        return base64.b64encode(data.encode('utf-8')).decode('utf-8')
+
+    def b64decode(self, data):
+        """
+        base64解码
+
+        Args:
+            data (str): 需要解码的字符串
+
+        Returns:
+            str: base64解码后的字符串
+        """
+        import base64
+        return base64.b64decode(data.encode('utf-8')).decode('utf-8')
 
     def del_ads(self, url):
         """
@@ -829,6 +856,7 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        url = params.get('url', '')
+        self.log("进入本地代理方法")
+        url = self.b64decode(params.get('url', ''))
         content = self.del_ads(url)
         return [200, 'application/vnd.apple.mpegurl', content]
