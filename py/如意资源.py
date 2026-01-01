@@ -770,15 +770,11 @@ class Spider(BaseSpider):
 
         headers = self.DEFAULT_HEADERS
         response = requests.get(url=url, headers=headers)
+        print('断点1')
 
         if response.status_code != 200:
-            import re
-            match = re.search(r'[?&]url=([^&]+)', url)
-            if match:
-                original_url = match.group(1)
-                response = requests.get(url=original_url, headers=headers)
-                if response.status_code != 200:
-                    return ''
+            self.log(f"请求失败，状态码：{response.status_code}")
+            return ''
 
         lines = response.text.splitlines()
 
