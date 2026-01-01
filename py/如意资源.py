@@ -826,5 +826,8 @@ class Spider(BaseSpider):
         """
         url = params.get('url', '')
         content = self.del_ads(url)
-        self.log(f"处理M3U8内容，过滤广告{content}")
+        for i in range(len(content)):
+            self.log(content[i])
+        
+
         return [200, 'application/vnd.apple.mpegurl', content]
