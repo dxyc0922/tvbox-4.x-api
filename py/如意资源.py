@@ -690,8 +690,8 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
-        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 1}
+        # proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
+        return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 1, 'jx': 1}
 
     def destroy(self):
         """
@@ -851,7 +851,5 @@ class Spider(BaseSpider):
             list: 代理响应结果
         """
         url = self.b64decode(params.get('url', ''))
-        self.log(f'localProxy: {url}')
         content = self.del_ads(url)
-        self.log(f'localProxy: {content}')
         return [200, 'application/vnd.apple.mpegurl', content]
