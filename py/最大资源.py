@@ -22,10 +22,12 @@ class Spider(BaseSpider):
         self.SPIDER_NAME = "最大资源"
         # API接口地址:http://api.ffzyapi.com/api.php/provide/vod/
         self.API_URL = "https://api.zuidapi.com/api.php/provide/vod/"
-        # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
-        self.IMAGE_BASE_URL = ""
         # 需要排除的分类ID集合:{34}
         self.EXCLUDE_CATEGORIES = {51, 55, 56, 57, 58, 59, 60, 61, 73, 74}
+        # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
+        self.IMAGE_BASE_URL = ""
+        # 图片代理URL，用于解决图片跨域访问问题
+        self.IMAGE_PROXY_URL = "https://images.weserv.nl/?url="
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = []
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
@@ -117,7 +119,7 @@ class Spider(BaseSpider):
         return {
             "vod_id": str(item["vod_id"]),
             "vod_name": item["vod_name"],
-            "vod_pic": vod_pic,
+            "vod_pic": self._process_image_url(vod_pic),  # 使用图片处理函数
             "vod_remarks": item.get("vod_remarks", ""),
             "vod_time": item.get("vod_time", ""),
             "vod_year": item.get("vod_year", ""),
@@ -128,6 +130,29 @@ class Spider(BaseSpider):
             "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
             "type_name": item.get("type_name", "")
         }
+
+    def _process_image_url(self, image_url):
+        """
+        处理图片URL，使用代理解决图片访问问题
+
+        Args:
+            image_url (str): 原始图片URL
+
+        Returns:
+            str: 处理后的图片URL
+        """
+        if not image_url:
+            return image_url
+
+        # 检查是否是HTTP或HTTPS链接，且没有使用代理
+        if image_url.startswith(('http://', 'https://')) and self.IMAGE_PROXY_URL not in image_url:
+            # 使用代理处理图片URL
+            # 首先将原始URL进行URL编码，然后拼接到代理URL上
+            from urllib.parse import quote
+            encoded_url = quote(image_url, safe='')
+            return f"{self.IMAGE_PROXY_URL}{encoded_url}"
+        
+        return image_url
 
     def getName(self):
         """
