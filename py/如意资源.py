@@ -826,6 +826,7 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
+        self.log(f"接收到代理请求：{params}")
         url = params.get('url', '')
         content = self.del_ads(url)
         return [200, 'application/vnd.apple.mpegurl', content]
