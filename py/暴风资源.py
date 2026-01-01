@@ -20,7 +20,7 @@ class Spider(BaseSpider):
         # 爬虫名称:非凡资源
         self.SPIDER_NAME = "暴风资源"
         # AJAX接口URL模板，用于直接获取分类数据
-        self.AJAX_API_URL = "https://www.zuidazy.co/index.php/ajax/data"
+        self.AJAX_API_URL = "https://bfzy.tv/index.php/ajax/data"
         # API接口地址:http://api.ffzyapi.com/api.php/provide/vod/
         self.API_URL = "https://bfzyapi.com/api.php/provide/vod/"
         # 需要排除的分类ID集合:{34}
