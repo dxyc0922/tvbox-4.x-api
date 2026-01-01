@@ -22,17 +22,15 @@ class Spider(BaseSpider):
         self.SPIDER_NAME = "最大资源"
         # API接口地址:http://api.ffzyapi.com/api.php/provide/vod/
         self.API_URL = "https://api.zuidapi.com/api.php/provide/vod/"
-        # 需要排除的分类ID集合:{34}
-        self.EXCLUDE_CATEGORIES = {51, 55, 56, 57, 58, 59, 60, 61, 73, 74}
         # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
         self.IMAGE_BASE_URL = ""
-        # 图片代理URL，用于解决图片跨域访问问题
-        self.IMAGE_PROXY_URL = "https://images.weserv.nl/?url="
+        # 需要排除的分类ID集合:{34}
+        self.EXCLUDE_CATEGORIES = {51, 55, 56, 57, 58, 59, 60, 61, 73, 74}
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = []
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
+            "User-Agent": "Mozilla/5.0 (Linux; Android 4.4; TV Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.104 Safari/537.36 TV Safari/4.0"}
         # 年份选项列表，用于筛选:初始化
         self.YEAR_OPTIONS = None
         # 分类缓存，避免重复请求:初始化
@@ -119,7 +117,7 @@ class Spider(BaseSpider):
         return {
             "vod_id": str(item["vod_id"]),
             "vod_name": item["vod_name"],
-            "vod_pic": self._process_image_url(vod_pic),  # 使用图片处理函数
+            "vod_pic": vod_pic,
             "vod_remarks": item.get("vod_remarks", ""),
             "vod_time": item.get("vod_time", ""),
             "vod_year": item.get("vod_year", ""),
@@ -130,29 +128,6 @@ class Spider(BaseSpider):
             "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
             "type_name": item.get("type_name", "")
         }
-
-    def _process_image_url(self, image_url):
-        """
-        处理图片URL，使用代理解决图片访问问题
-
-        Args:
-            image_url (str): 原始图片URL
-
-        Returns:
-            str: 处理后的图片URL
-        """
-        if not image_url:
-            return image_url
-
-        # 检查是否是HTTP或HTTPS链接，且没有使用代理
-        if image_url.startswith(('http://', 'https://')) and self.IMAGE_PROXY_URL not in image_url:
-            # 使用代理处理图片URL
-            # 首先将原始URL进行URL编码，然后拼接到代理URL上
-            from urllib.parse import quote
-            encoded_url = quote(image_url, safe='')
-            return f"{self.IMAGE_PROXY_URL}{encoded_url}"
-        
-        return image_url
 
     def getName(self):
         """
@@ -604,7 +579,7 @@ class Spider(BaseSpider):
         if 'm3u8' in id or 'm3u' in id:
             filtered_url = self._filter_m3u8_ads(id)
             return {'url': filtered_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
-        
+
         # 检查是否是广告链接或需要过滤的链接
         if self._is_ad_link(id):
             # 尝试通过API获取纯净的播放链接
@@ -613,20 +588,20 @@ class Spider(BaseSpider):
                 if 'm3u8' in clean_url or 'm3u' in clean_url:
                     clean_url = self._filter_m3u8_ads(clean_url)
                 return {'url': clean_url, 'header': self.DEFAULT_HEADERS, 'parse': 1, 'jx': 0}
-        
+
         # 检查是否需要解析
         if self._need_parse(id):
             return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 1, 'jx': 0}
         else:
             return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
-    
+
     def _filter_m3u8_ads(self, m3u8_url):
         """
         通过分析域名分布来过滤m3u8文件中的广告片段
-        
+
         Args:
             m3u8_url (str): 原始m3u8播放列表URL
-            
+
         Returns:
             str: 过滤广告后的m3u8 URL 或原始URL
         """
@@ -636,25 +611,26 @@ class Spider(BaseSpider):
             import os
             from urllib.parse import urljoin, urlparse
             from collections import Counter
-            
+
             # 获取m3u8内容
             response = requests.get(m3u8_url, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
                 return m3u8_url
-                
+
             m3u8_content = response.text
             lines = m3u8_content.split('\n')
-            
+
             # 提取所有媒体URL（非注释行）
             media_urls = []
             extinf_lines = []  # 保存EXTINF行及其对应的URL索引
-            
+
             i = 0
             while i < len(lines):
                 line = lines[i]
                 if line.startswith('#EXTINF'):
                     # 记录EXTINF行，下一行是URL
-                    extinf_lines.append((line, len(media_urls)))  # (EXTINF行, 对应URL在media_urls中的索引)
+                    # (EXTINF行, 对应URL在media_urls中的索引)
+                    extinf_lines.append((line, len(media_urls)))
                 elif line.strip() and not line.startswith('#'):
                     # 这是一个媒体URL
                     if line.startswith('http'):
@@ -664,7 +640,7 @@ class Spider(BaseSpider):
                         url = urljoin(m3u8_url, line)
                     media_urls.append(url)
                 i += 1
-            
+
             # 分析域名分布，找出主要域名（正常视频片段）
             domains = []
             for url in media_urls:
@@ -674,24 +650,24 @@ class Spider(BaseSpider):
                     domains.append(domain)
                 except:
                     continue
-            
+
             if not domains:
                 return m3u8_url  # 如果无法解析任何域名，返回原URL
-            
+
             # 统计域名出现次数
             domain_counts = Counter(domains)
-            
+
             # 找出出现次数最多的域名（认为是正常视频域名）
             if not domain_counts:
                 return m3u8_url
-            
+
             # 获取出现次数最多的域名
             main_domain, _ = domain_counts.most_common(1)[0]
-            
+
             # 过滤：只保留与主域名相同的URL
             filtered_lines = []
             url_index = 0
-            
+
             for line in lines:
                 if line.startswith('#EXTINF'):
                     # 保留EXTINF行
@@ -703,7 +679,7 @@ class Spider(BaseSpider):
                         try:
                             parsed = urlparse(current_url)
                             current_domain = f"{parsed.scheme}://{parsed.netloc}"
-                            
+
                             # 如果域名与主域名相同，则保留
                             if current_domain == main_domain:
                                 filtered_lines.append(line)  # 保留原始行（相对或绝对路径）
@@ -714,25 +690,27 @@ class Spider(BaseSpider):
                 else:
                     # 保留所有注释行（除了可能的广告相关注释）
                     filtered_lines.append(line)
-            
+
             # 如果过滤后内容过少，返回原URL
-            original_media_count = len([l for l in lines if l.strip() and not l.startswith('#') and not l.startswith('#EXT')])
-            filtered_media_count = len([l for l in filtered_lines if l.strip() and not l.startswith('#') and not l.startswith('#EXT')])
-            
+            original_media_count = len([l for l in lines if l.strip(
+            ) and not l.startswith('#') and not l.startswith('#EXT')])
+            filtered_media_count = len([l for l in filtered_lines if l.strip(
+            ) and not l.startswith('#') and not l.startswith('#EXT')])
+
             if original_media_count > 0 and filtered_media_count / original_media_count < 0.5:
                 return m3u8_url
-            
+
             # 创建临时m3u8文件
             filtered_content = '\n'.join(filtered_lines)
-            
+
             # 将过滤后的内容保存到临时文件
             with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.m3u8') as f:
                 f.write(filtered_content)
                 temp_path = f.name
-            
+
             # 返回临时文件的file URL
             return f"file://{temp_path}"
-            
+
         except Exception as e:
             # 出错时返回原URL
             return m3u8_url
@@ -740,17 +718,17 @@ class Spider(BaseSpider):
     def _is_ad_m3u8_line(self, line, base_url):
         """
         检查m3u8文件中的行是否是广告片段（使用域名分析方法）
-        
+
         Args:
             line (str): m3u8文件中的一行
             base_url (str): 基础URL，用于构建绝对路径
-            
+
         Returns:
             bool: 如果是广告返回True，否则返回False
         """
         if not line or line.startswith('#'):
             return False
-            
+
         # 绝对URL
         if line.startswith('http'):
             url = line
@@ -758,7 +736,7 @@ class Spider(BaseSpider):
             # 相对URL，转换为绝对URL
             from urllib.parse import urljoin
             url = urljoin(base_url, line)
-        
+
         # 这个方法在新算法中不再使用，因为我们使用域名分布分析
         # 保留是为了兼容其他可能的调用
         return False
@@ -766,46 +744,46 @@ class Spider(BaseSpider):
     def _is_ad_link(self, url):
         """
         检查是否是广告链接
-        
+
         Args:
             url (str): 播放地址
-            
+
         Returns:
             bool: 如果是广告链接返回True，否则返回False
         """
         ad_indicators = [
-            'ads.', 'ad.', 'advertisement', 'adserver', 
+            'ads.', 'ad.', 'advertisement', 'adserver',
             'analytics.', '.gif', '.html', 'popup', 'track'
         ]
-        
+
         url_lower = url.lower()
         return any(indicator in url_lower for indicator in ad_indicators)
-    
+
     def _need_parse(self, url):
         """
         检查URL是否需要解析（某些URL可能需要额外解析才能去除广告）
-        
+
         Args:
             url (str): 播放地址
-            
+
         Returns:
             bool: 如果需要解析返回True，否则返回False
         """
         parse_indicators = [
-            'v.qq.com', 'youku.com', 'iqiyi.com', 'mgtv.com', 
+            'v.qq.com', 'youku.com', 'iqiyi.com', 'mgtv.com',
             'bilibili.com', 'touko', 'player.m3u8'
         ]
-        
+
         url_lower = url.lower()
         return any(indicator in url_lower for indicator in parse_indicators)
-    
+
     def _get_clean_url(self, original_url):
         """
         通过API或其他方式获取纯净的播放链接
-        
+
         Args:
             original_url (str): 原始播放地址
-            
+
         Returns:
             str: 纯净的播放链接，如果获取失败返回None
         """
@@ -813,7 +791,7 @@ class Spider(BaseSpider):
             # 尝试通过API获取纯净播放链接
             # 这里可以根据具体资源站API进行定制
             import re
-            
+
             # 提取真实视频链接（根据常见格式）
             # 通常广告会在视频链接前添加跳转或包装
             m3u8_pattern = r'(https?://[^\s]*\.(m3u8|mp4|flv|avi)[^\s]*)'
@@ -823,60 +801,61 @@ class Spider(BaseSpider):
                 # 验证链接是否有效
                 if self._validate_url(clean_url):
                     return clean_url
-            
+
             # 如果正则提取失败，尝试移除常见的广告参数
             clean_url = self._remove_ad_params(original_url)
             if clean_url and clean_url != original_url and self._validate_url(clean_url):
                 return clean_url
-                
+
             return None
         except Exception as e:
             return None
-    
+
     def _remove_ad_params(self, url):
         """
         移除URL中的广告参数
-        
+
         Args:
             url (str): 原始URL
-            
+
         Returns:
             str: 移除广告参数后的URL
         """
         import re
         from urllib.parse import urlparse, parse_qs, urlunparse
-        
+
         try:
             parsed_url = urlparse(url)
             query_params = parse_qs(parsed_url.query, keep_blank_values=True)
-            
+
             # 定义要移除的广告相关参数
             ad_params = {
-                'ad', 'ads', 'advertisement', 'track', 'from_ad', 'utm_source', 
+                'ad', 'ads', 'advertisement', 'track', 'from_ad', 'utm_source',
                 'utm_medium', 'utm_campaign', 'utm_term', 'ref', 'referer',
                 'popup', 'preplay', 'splash'
             }
-            
+
             # 过滤掉广告参数
-            filtered_params = {k: v for k, v in query_params.items() if k not in ad_params}
-            
+            filtered_params = {k: v for k,
+                               v in query_params.items() if k not in ad_params}
+
             # 重新构建查询字符串
             from urllib.parse import urlencode
             new_query = urlencode(filtered_params, doseq=True)
-            
+
             # 重新构建URL
             new_parsed = parsed_url._replace(query=new_query)
             return urlunparse(new_parsed)
         except Exception as e:
             return url  # 如果处理失败，返回原URL
-    
+
     def _validate_url(self, url):
         """
         验证URL是否有效（简单检查）
-        
+
         Args:
             url (str): 要验证的URL
-            
+
         Returns:
             bool: 如果URL有效返回True，否则返回False
         """
@@ -884,12 +863,13 @@ class Spider(BaseSpider):
         # 简单的URL格式验证
         url_pattern = re.compile(
             r'^https?://'  # http:// or https://
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain...
+            # domain...
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'
             r'localhost|'  # localhost...
             r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # ...or ip
             r'(?::\d+)?'  # optional port
             r'(?:/?|[/?]\S+)$', re.IGNORECASE)
-        
+
         return url_pattern.match(url) is not None
 
     def destroy(self):
