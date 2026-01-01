@@ -4,7 +4,6 @@
 该模板适用于实现基于通用API接口的资源站爬虫
 """
 from base.spider import Spider as BaseSpider
-import time
 import json
 import sys
 sys.path.append('..')
@@ -20,19 +19,19 @@ class Spider(BaseSpider):
         super().__init__()
         # 爬虫名称:非凡资源
         self.SPIDER_NAME = "非凡资源"
+        # AJAX接口URL模板，用于直接获取分类数据
+        self.AJAX_API_URL = "http://www.ffzy.tv/index.php/ajax/data"
         # API接口地址:http://api.ffzyapi.com/api.php/provide/vod/
         self.API_URL = "http://api.ffzyapi.com/api.php/provide/vod/"
         # 需要排除的分类ID集合:{34}
         self.EXCLUDE_CATEGORIES = {34}
         # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
-        self.IMAGE_BASE_URL = ""
+        self.IMAGE_BASE_URL = "https://img.picbf.com"
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = ['feifan']
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
-        # 年份选项列表，用于筛选:初始化
-        self.YEAR_OPTIONS = None
         # 分类缓存，避免重复请求:初始化
         self.CATEGORY_CACHE = None
         # 一级分类关键字，用于识别主分类
@@ -48,21 +47,6 @@ class Spider(BaseSpider):
             '体育赛事': ['篮球', '足球', '斯诺克'],
             '爽文短剧': ['有声动漫', '女频恋爱', '反转爽剧', '古装仙侠', '年代穿越', '脑洞悬疑', '现代都市']
         }
-
-    def _generate_year_options(self):
-        """
-        生成年份筛选选项
-        从当前年份到2001年，逐年递减生成筛选选项
-
-        Returns:
-            list: 包含年份选项的列表，格式为[{"n": "显示名称", "v": "实际值"}]
-        """
-        current_year = int(time.strftime("%Y"))
-        year_range = range(current_year, 2000 - 1, -1)
-        year_options = [{"n": "全部", "v": ""}]
-        for year in year_range:
-            year_options.append({"n": str(year), "v": str(year)})
-        return year_options
 
     def _request_data(self, params, timeout=10, retries=3):
         """
@@ -96,6 +80,46 @@ class Spider(BaseSpider):
                 pass
 
             if attempt < retries - 1:
+                time.sleep(0.5)
+
+        return None
+
+    def _request_ajax_data(self, tid, pg, limit=20):
+        """
+        通过AJAX接口请求数据
+
+        Args:
+            tid (str): 分类ID
+            pg (str): 页码
+            limit (int): 每页数据数量
+
+        Returns:
+            dict or None: 成功时返回解析后的数据，失败时返回None
+        """
+        import time
+        params = {
+            "mid": "1",
+            "tid": tid,
+            "page": pg,
+            "limit": limit
+        }
+        
+        for attempt in range(3):
+            try:
+                response = self.fetch(
+                    self.AJAX_API_URL, params=params, headers=self.DEFAULT_HEADERS, timeout=10)
+                if response.status_code == 200:
+                    data = json.loads(response.text)
+                    if data and "list" in data:
+                        return data
+                else:
+                    pass
+            except json.JSONDecodeError:
+                pass
+            except Exception as e:
+                pass
+
+            if attempt < 2:
                 time.sleep(0.5)
 
         return None
@@ -146,6 +170,7 @@ class Spider(BaseSpider):
         - self.EXCLUDE_CATEGORIES
         - self.DEFAULT_HEADERS
         - self.SPIDER_NAME
+        - self.AJAX_API_URL
         """
         pass
 
@@ -299,9 +324,6 @@ class Spider(BaseSpider):
         Returns:
             dict: 筛选选项配置
         """
-        if self.YEAR_OPTIONS is None:
-            self.YEAR_OPTIONS = self._generate_year_options()
-
         filters = {}
 
         for cat_id, sub_cats in sub_categories.items():
@@ -309,8 +331,7 @@ class Spider(BaseSpider):
                 {"key": "type_id", "name": "类型", "value": [
                     {"n": "全部", "v": ""},
                     *sub_cats
-                ]},
-                {"key": "year", "name": "年份", "value": self.YEAR_OPTIONS}
+                ]}
             ]
 
             filters[cat_id] = filter_options
@@ -362,22 +383,34 @@ class Spider(BaseSpider):
         """
         try:
             category_id = tid
-            if extend and 'type_id' in extend and extend['type_id']:
+            if filter and extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
 
             params = {"ac": "detail", "t": category_id, "pg": pg}
 
-            if extend:
+            if filter and extend:
                 for key, value in extend.items():
                     if key != 't' and key != 'type_id' and value:
                         params[key] = value
 
             data = self._request_data(params)
             if not data:
-                return self._get_subcategory_data(tid, pg, extend)
+                # 如果API接口没有返回数据，尝试使用AJAX接口
+                ajax_data = self._request_ajax_data(category_id, pg)
+                if ajax_data:
+                    return self._process_ajax_response(ajax_data, pg)
+                else:
+                    # 如果AJAX接口也没有数据，再尝试获取子分类数据
+                    return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             if "list" not in data or not data["list"]:
-                return self._get_subcategory_data(tid, pg, extend)
+                # 如果API接口返回的数据没有列表，尝试使用AJAX接口
+                ajax_data = self._request_ajax_data(category_id, pg)
+                if ajax_data:
+                    return self._process_ajax_response(ajax_data, pg)
+                else:
+                    # 如果AJAX接口也没有数据，再尝试获取子分类数据
+                    return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             videos = [
                 self._build_video_object(item)
@@ -394,7 +427,39 @@ class Spider(BaseSpider):
             }
             return result
         except Exception as e:
+            # 如果API接口出错，尝试使用AJAX接口
+            try:
+                ajax_data = self._request_ajax_data(tid, pg)
+                if ajax_data:
+                    return self._process_ajax_response(ajax_data, pg)
+            except:
+                pass
             return {"list": [], "page": 1, "pagecount": 1, "limit": 20, "total": 0}
+
+    def _process_ajax_response(self, ajax_data, pg):
+        """
+        处理AJAX接口返回的数据
+
+        Args:
+            ajax_data (dict): AJAX接口返回的数据
+            pg (str): 当前页码
+
+        Returns:
+            dict: 格式化后的结果
+        """
+        videos = [
+            self._build_video_object(item)
+            for item in ajax_data.get("list", [])
+        ]
+
+        result = {
+            "list": videos,
+            "page": int(ajax_data.get("page", pg)),
+            "pagecount": int(ajax_data.get("pagecount", 1)),
+            "limit": int(ajax_data.get("limit", 20)),
+            "total": int(ajax_data.get("total", 0))
+        }
+        return result
 
     def _get_subcategory_data(self, tid, pg, extend):
         """
