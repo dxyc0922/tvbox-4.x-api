@@ -18,10 +18,11 @@ class Spider(BaseSpider):
 
     def __init__(self):
         super().__init__()
+        # 爬虫名称:非凡资源
         self.SPIDER_NAME = "非凡资源"
         # API接口地址:http://api.ffzyapi.com/api.php/provide/vod/
         self.API_URL = "http://api.ffzyapi.com/api.php/provide/vod/"
-        # 需要排除的分类ID集合:{29, 73}
+        # 需要排除的分类ID集合:{34}
         self.EXCLUDE_CATEGORIES = {34}
         # 图片基础URL，用于处理相对路径的图片链接:https://img.picbf.com
         self.IMAGE_BASE_URL = ""
@@ -611,3 +612,125 @@ class Spider(BaseSpider):
         filtered_from_list, filtered_url_list = zip(
             *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
+        
+    def b64encode(self, data):
+        """
+        base64编码
+        
+        Args:
+            data (str): 需要编码的字符串
+        
+        Returns:
+            str: base64编码后的字符串
+        """
+        import base64
+        return base64.b64encode(data.encode('utf-8')).decode('utf-8')
+
+    def b64decode(self, data):
+        """
+        base64解码
+        
+        Args:
+            data (str): 需要解码的字符串
+        
+        Returns:
+            str: base64解码后的字符串
+        """
+        import base64
+        return base64.b64decode(data.encode('utf-8')).decode('utf-8')
+
+    def del_ads(self, url):
+        """
+        去广告逻辑，解析M3U8播放列表并过滤广告片段
+        
+        Args:
+            url (str): M3U8播放地址
+        
+        Returns:
+            str: 过滤广告后的播放内容
+        """
+        import requests
+        from urllib import parse
+        import time
+
+        headers = self.DEFAULT_HEADERS
+        response = requests.get(url=url, headers=headers)
+        
+        if response.status_code != 200:
+            return ''
+        
+        lines = response.text.splitlines()
+        
+        # 检查是否是M3U8格式，并且是否有混合内容
+        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
+            # 解析当前URL的协议和域名部分
+            parsed_url = parse.urlparse(url)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            
+            # 确定新的URL
+            next_url = lines[2]
+            if next_url.startswith('http'):  # 完整URL
+                new_url = next_url
+            elif next_url.startswith('/'):  # 相对于根路径
+                new_url = base_url + next_url
+            else:  # 相对于当前路径
+                current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                new_url = current_path + next_url
+            
+            # 递归处理
+            return self.del_ads(new_url)
+        else:
+            # 处理M3U8内容，过滤广告
+            result_lines = []
+            discontinuity_indices = []
+            
+            for i, line in enumerate(lines):
+                if '.ts' in line:
+                    # 处理.ts文件路径
+                    if line.startswith('http'):  # 完整URL
+                        result_lines.append(line)
+                    elif line.startswith('/'):  # 相对于根路径
+                        parsed_url = parse.urlparse(url)
+                        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                        result_lines.append(base_url + line)
+                    else:  # 相对于当前路径
+                        current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                        result_lines.append(current_path + line)
+                elif line == '#EXT-X-DISCONTINUITY':  # 记录不连续点的索引
+                    result_lines.append(line)
+                    discontinuity_indices.append(i)
+                else:
+                    result_lines.append(line)
+            
+            # 根据不连续点的索引确定需要过滤的范围
+            filter_ranges = []
+            if len(discontinuity_indices) >= 1:
+                filter_ranges.append((discontinuity_indices[0], discontinuity_indices[0]))
+            if len(discontinuity_indices) >= 3:
+                filter_ranges.append((discontinuity_indices[1], discontinuity_indices[2]))
+            if len(discontinuity_indices) >= 5:
+                filter_ranges.append((discontinuity_indices[3], discontinuity_indices[4]))
+            
+            # 过滤掉指定范围内的内容
+            filtered_lines = []
+            for i, line in enumerate(result_lines):
+                # 检查当前索引是否在任何过滤范围内
+                is_filtered = any(start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
+                if not is_filtered:
+                    filtered_lines.append(line)
+            
+            return '\n'.join(filtered_lines)
+
+    def localProxy(self, params):
+        """
+        本地代理方法，用于处理播放地址的去广告
+        
+        Args:
+            params (dict): 代理参数
+        
+        Returns:
+            list: 代理响应结果
+        """
+        url = self.b64decode(params.get('url', ''))
+        content = self.del_ads(url)
+        return [200, 'application/vnd.apple.mpegurl', content]
