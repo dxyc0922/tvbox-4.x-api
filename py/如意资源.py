@@ -744,10 +744,8 @@ class Spider(BaseSpider):
 
         headers = self.DEFAULT_HEADERS
         response = requests.get(url=url, headers=headers)
-        self.log(f"请求成功，状态码：{response.status_code}")
 
         if response.status_code != 200:
-            self.log(f"请求失败，状态码：{response.status_code}")
             return ''
 
         lines = response.text.splitlines()
@@ -813,6 +811,8 @@ class Spider(BaseSpider):
                     start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
                 if not is_filtered:
                     filtered_lines.append(line)
+            
+            self.log(f"处理M3U8内容，过滤广告")
 
             return '\n'.join(filtered_lines)
 
