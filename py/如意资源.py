@@ -29,8 +29,6 @@ class Spider(BaseSpider):
         self.IMAGE_BASE_URL = "https://img.picbf.com"
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = ['ruyi']
-        # 是否使用本地代理处理播放地址
-        self.USE_PROXY = False
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
@@ -692,12 +690,8 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        if self.USE_PROXY == True:
-            proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
-            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
-        else:
-            proxy_url = f"url={self.b64encode(id)}"
-            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
+        proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
+        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
         """
@@ -778,7 +772,13 @@ class Spider(BaseSpider):
         response = requests.get(url=url, headers=headers)
 
         if response.status_code != 200:
-            return ''
+            import re
+            match = re.search(r'[?&]url=([^&]+)', url)
+            if match:
+                original_url = match.group(1)
+                response = requests.get(url=original_url, headers=headers)
+                if response.status_code != 200:
+                    return ''
 
         lines = response.text.splitlines()
 
