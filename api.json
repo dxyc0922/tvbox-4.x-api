@@ -4,41 +4,31 @@
             "key": "非凡资源",
             "name": "非凡资源",
             "type": 3,
-            "api": "./py/非凡资源.py",
-            "searchable": 1,
-            "quickSearch": 1,
-            "filterable": 1,
-            "changeable": 1
+            "api": "./py/非凡资源.py"
         },
         {
             "key": "暴风资源",
             "name": "暴风资源",
             "type": 3,
-            "api": "./py/暴风资源.py",
-            "searchable": 1,
-            "quickSearch": 1,
-            "filterable": 1,
-            "changeable": 1
+            "api": "./py/暴风资源.py"
         },
         {
             "key": "优质资源",
             "name": "优质资源",
             "type": 3,
-            "api": "./py/优质资源.py",
-            "searchable": 1,
-            "quickSearch": 1,
-            "filterable": 1,
-            "changeable": 1
+            "api": "./py/优质资源.py"
         },
         {
             "key": "最大资源",
             "name": "最大资源",
             "type": 3,
-            "api": "./py/最大资源.py",
-            "searchable": 1,
-            "quickSearch": 1,
-            "filterable": 1,
-            "changeable": 1
+            "api": "./py/最大资源.py"
+        },
+        {
+            "key": "如意资源",
+            "name": "如意资源",
+            "type": 3,
+            "api": "./py/如意资源.py"
         }
     ]
 }
