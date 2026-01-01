@@ -29,6 +29,8 @@ class Spider(BaseSpider):
         self.IMAGE_BASE_URL = "https://img.picbf.com"
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = ['ruyi']
+        # 是否使用本地代理处理播放地址
+        self.USE_PROXY = False
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
@@ -690,8 +692,11 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        proxy_url = self.getProxyUrl() + f"&url={id}"
-        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
+        if self.USE_PROXY:
+            proxy_url = self.getProxyUrl() + f"&url={id}"
+            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
+        else:
+            return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
         """
@@ -811,7 +816,7 @@ class Spider(BaseSpider):
                     start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
                 if not is_filtered:
                     filtered_lines.append(line)
-            
+
             return '\n'.join(filtered_lines)
 
     def localProxy(self, params):
@@ -826,8 +831,4 @@ class Spider(BaseSpider):
         """
         url = params.get('url', '')
         content = self.del_ads(url)
-        for i in range(len(content)):
-            self.log(content[i])
-        
-
         return [200, 'application/vnd.apple.mpegurl', content]
