@@ -696,7 +696,7 @@ class Spider(BaseSpider):
             proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
             return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
         else:
-            proxy_url = f"&url={self.b64encode(id)}"
+            proxy_url = f"url={self.b64encode(id)}"
             return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
