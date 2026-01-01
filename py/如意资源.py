@@ -30,7 +30,7 @@ class Spider(BaseSpider):
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = ['ruyi']
         # 是否使用本地代理处理播放地址
-        self.USE_PROXY = True
+        self.USE_PROXY = False
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
