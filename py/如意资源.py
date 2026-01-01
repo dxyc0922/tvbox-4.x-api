@@ -744,7 +744,7 @@ class Spider(BaseSpider):
 
         headers = self.DEFAULT_HEADERS
         response = requests.get(url=url, headers=headers)
-        print('断点1')
+        self.log(f"请求成功，状态码：{response.status_code}")
 
         if response.status_code != 200:
             self.log(f"请求失败，状态码：{response.status_code}")
@@ -826,7 +826,6 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        self.log(f"接收到代理请求：{params}")
         url = params.get('url', '')
         content = self.del_ads(url)
         return [200, 'application/vnd.apple.mpegurl', content]
