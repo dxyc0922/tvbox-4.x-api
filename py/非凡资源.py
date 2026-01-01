@@ -34,6 +34,8 @@ class Spider(BaseSpider):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
         # 分类缓存，避免重复请求:初始化
         self.CATEGORY_CACHE = None
+        # 数据缓存，用于缓存常用数据
+        self.DATA_CACHE = {}
         # 一级分类关键字，用于识别主分类
         self.PRIMARY_CATEGORIES_KEYWORDS = [
             '影视解说', '电影解说', '电影', '电影片', '电视剧', '连续剧', '综艺', '动漫', '纪录片', '演唱会', '音乐', '体育', '体育赛事', '短剧', '爽文短剧', '短剧大全']
@@ -64,6 +66,13 @@ class Spider(BaseSpider):
         Returns:
             dict or None: 成功时返回解析后的数据，失败时返回None
         """
+        # 生成缓存键
+        cache_key = f"api_data_{str(params)}"
+        
+        # 检查缓存
+        if cache_key in self.DATA_CACHE:
+            return self.DATA_CACHE[cache_key]
+        
         import time
         for attempt in range(retries):
             try:
@@ -73,8 +82,12 @@ class Spider(BaseSpider):
                     data = json.loads(response.text)
                     if data is not None:
                         if "code" in data and data["code"] in (0, 1):
+                            # 缓存结果
+                            self.DATA_CACHE[cache_key] = data
                             return data
                         elif "list" in data:
+                            # 缓存结果
+                            self.DATA_CACHE[cache_key] = data
                             return data
                 else:
                     pass
@@ -101,6 +114,14 @@ class Spider(BaseSpider):
             dict or None: 成功时返回解析后的数据，失败时返回None
         """
         import time
+        
+        # 生成缓存键
+        cache_key = f"ajax_data_{tid}_{pg}_{limit}"
+        
+        # 检查缓存
+        if cache_key in self.DATA_CACHE:
+            return self.DATA_CACHE[cache_key]
+        
         params = {
             "mid": "1",
             "tid": tid,
@@ -115,6 +136,8 @@ class Spider(BaseSpider):
                 if response.status_code == 200:
                     data = json.loads(response.text)
                     if data and "list" in data:
+                        # 缓存结果
+                        self.DATA_CACHE[cache_key] = data
                         return data
                 else:
                     pass
@@ -156,6 +179,26 @@ class Spider(BaseSpider):
             "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
             "type_name": item.get("type_name", "")
         }
+
+    def _batch_process_videos(self, raw_items, batch_size=20):
+        """
+        分批处理视频数据，减少内存占用
+
+        Args:
+            raw_items (list): 原始视频数据列表
+            batch_size (int): 批处理大小
+
+        Yields:
+            list: 批处理后的视频对象列表
+        """
+        for i in range(0, len(raw_items), batch_size):
+            batch = raw_items[i:i + batch_size]
+            processed_batch = [
+                self._build_video_object(item)
+                for item in batch
+                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+            ]
+            yield processed_batch
 
     def getName(self):
         """
@@ -363,11 +406,10 @@ class Spider(BaseSpider):
                     params = {"ac": "detail", "pg": "1"}
                     api_data = self._request_data(params)
                     if api_data and "list" in api_data and api_data["list"]:
-                        api_videos = [
-                            self._build_video_object(item)
-                            for item in api_data.get("list", [])
-                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
-                        ]
+                        api_videos = []
+                        # 使用分批处理API数据
+                        for batch in self._batch_process_videos(api_data.get("list", [])):
+                            api_videos.extend(batch)
                         # 优先使用API数据，因为数量可能更多
                         if len(api_videos) > len(videos):
                             return {"list": api_videos}
@@ -386,11 +428,10 @@ class Spider(BaseSpider):
             if "list" not in data or not data["list"]:
                 return {"list": []}
 
-            videos = [
-                self._build_video_object(item)
-                for item in data.get("list", [])
-                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
-            ]
+            videos = []
+            # 使用分批处理
+            for batch in self._batch_process_videos(data.get("list", [])):
+                videos.extend(batch)
 
             result = {"list": videos}
             return result
@@ -429,11 +470,11 @@ class Spider(BaseSpider):
                     api_data = self._request_data(params)
                     if api_data and "list" in api_data and api_data["list"]:
                         # 优先使用API数据
-                        videos = [
-                            self._build_video_object(item)
-                            for item in api_data.get("list", [])
-                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
-                        ]
+                        videos = []
+                        # 使用分批处理API数据
+                        for batch in self._batch_process_videos(api_data.get("list", [])):
+                            videos.extend(batch)
+                        
                         result = {
                             "list": videos,
                             "page": int(api_data.get("page", pg)),
@@ -462,11 +503,10 @@ class Spider(BaseSpider):
                 # 如果API接口返回的数据没有列表，再尝试获取子分类数据
                 return self._get_subcategory_data(tid, pg, extend if filter else {})
 
-            videos = [
-                self._build_video_object(item)
-                for item in data.get("list", [])
-                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
-            ]
+            videos = []
+            # 使用分批处理
+            for batch in self._batch_process_videos(data.get("list", [])):
+                videos.extend(batch)
 
             result = {
                 "list": videos,
@@ -560,7 +600,7 @@ class Spider(BaseSpider):
                     ]
                 return []
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 futures = [executor.submit(
                     fetch_subcategory_videos, sub_cat) for sub_cat in sub_categories]
                 for future in concurrent.futures.as_completed(futures):
@@ -661,11 +701,10 @@ class Spider(BaseSpider):
                     "total": int(data.get("total", 0))
                 }
 
-            videos = [
-                self._build_video_object(item)
-                for item in data.get("list", [])
-                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
-            ]
+            videos = []
+            # 使用分批处理
+            for batch in self._batch_process_videos(data.get("list", [])):
+                videos.extend(batch)
 
             result = {
                 "list": videos,
@@ -697,7 +736,9 @@ class Spider(BaseSpider):
         """
         销毁爬虫实例，释放资源
         """
-        pass
+        # 清空缓存
+        self.CATEGORY_CACHE = None
+        self.DATA_CACHE = {}
 
     def _filter_play_sources(self, play_from, play_url):
         """
@@ -770,76 +811,85 @@ class Spider(BaseSpider):
         import time
 
         headers = self.DEFAULT_HEADERS
-        response = requests.get(url=url, headers=headers)
+        
+        # 使用循环而不是递归处理M3U8链式引用
+        current_url = url
+        max_redirects = 5  # 限制最大重定向次数，防止无限循环
+        redirects_count = 0
+        
+        while redirects_count < max_redirects:
+            response = requests.get(url=current_url, headers=headers)
 
-        if response.status_code != 200:
-            return ''
+            if response.status_code != 200:
+                return ''
 
-        lines = response.text.splitlines()
+            lines = response.text.splitlines()
 
-        # 检查是否是M3U8格式，并且是否有混合内容
-        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
-            # 解析当前URL的协议和域名部分
-            parsed_url = parse.urlparse(url)
-            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            # 检查是否是M3U8格式，并且是否有混合内容
+            if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
+                # 解析当前URL的协议和域名部分
+                parsed_url = parse.urlparse(current_url)
+                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-            # 确定新的URL
-            next_url = lines[2]
-            if next_url.startswith('http'):  # 完整URL
-                new_url = next_url
-            elif next_url.startswith('/'):  # 相对于根路径
-                new_url = base_url + next_url
-            else:  # 相对于当前路径
-                current_path = url.rsplit('/', maxsplit=1)[0] + '/'
-                new_url = current_path + next_url
+                # 确定新的URL
+                next_url = lines[2]
+                if next_url.startswith('http'):  # 完整URL
+                    current_url = next_url
+                elif next_url.startswith('/'):  # 相对于根路径
+                    current_url = base_url + next_url
+                else:  # 相对于当前路径
+                    current_path = current_url.rsplit('/', maxsplit=1)[0] + '/'
+                    current_url = current_path + next_url
+                
+                redirects_count += 1
+            else:
+                # 处理M3U8内容，过滤广告
+                result_lines = []
+                discontinuity_indices = []
 
-            # 递归处理
-            return self.del_ads(new_url)
-        else:
-            # 处理M3U8内容，过滤广告
-            result_lines = []
-            discontinuity_indices = []
-
-            for i, line in enumerate(lines):
-                if '.ts' in line:
-                    # 处理.ts文件路径
-                    if line.startswith('http'):  # 完整URL
+                for i, line in enumerate(lines):
+                    if '.ts' in line:
+                        # 处理.ts文件路径
+                        if line.startswith('http'):  # 完整URL
+                            result_lines.append(line)
+                        elif line.startswith('/'):  # 相对于根路径
+                            parsed_url = parse.urlparse(current_url)
+                            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                            result_lines.append(base_url + line)
+                        else:  # 相对于当前路径
+                            current_path = current_url.rsplit('/', maxsplit=1)[0] + '/'
+                            result_lines.append(current_path + line)
+                    elif line == '#EXT-X-DISCONTINUITY':  # 记录不连续点的索引
                         result_lines.append(line)
-                    elif line.startswith('/'):  # 相对于根路径
-                        parsed_url = parse.urlparse(url)
-                        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                        result_lines.append(base_url + line)
-                    else:  # 相对于当前路径
-                        current_path = url.rsplit('/', maxsplit=1)[0] + '/'
-                        result_lines.append(current_path + line)
-                elif line == '#EXT-X-DISCONTINUITY':  # 记录不连续点的索引
-                    result_lines.append(line)
-                    discontinuity_indices.append(i)
-                else:
-                    result_lines.append(line)
+                        discontinuity_indices.append(i)
+                    else:
+                        result_lines.append(line)
 
-            # 根据不连续点的索引确定需要过滤的范围
-            filter_ranges = []
-            if len(discontinuity_indices) >= 1:
-                filter_ranges.append(
-                    (discontinuity_indices[0], discontinuity_indices[0]))
-            if len(discontinuity_indices) >= 3:
-                filter_ranges.append(
-                    (discontinuity_indices[1], discontinuity_indices[2]))
-            if len(discontinuity_indices) >= 5:
-                filter_ranges.append(
-                    (discontinuity_indices[3], discontinuity_indices[4]))
+                # 根据不连续点的索引确定需要过滤的范围
+                filter_ranges = []
+                if len(discontinuity_indices) >= 1:
+                    filter_ranges.append(
+                        (discontinuity_indices[0], discontinuity_indices[0]))
+                if len(discontinuity_indices) >= 3:
+                    filter_ranges.append(
+                        (discontinuity_indices[1], discontinuity_indices[2]))
+                if len(discontinuity_indices) >= 5:
+                    filter_ranges.append(
+                        (discontinuity_indices[3], discontinuity_indices[4]))
 
-            # 过滤掉指定范围内的内容
-            filtered_lines = []
-            for i, line in enumerate(result_lines):
-                # 检查当前索引是否在任何过滤范围内
-                is_filtered = any(
-                    start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
-                if not is_filtered:
-                    filtered_lines.append(line)
+                # 过滤掉指定范围内的内容
+                filtered_lines = []
+                for i, line in enumerate(result_lines):
+                    # 检查当前索引是否在任何过滤范围内
+                    is_filtered = any(
+                        start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
+                    if not is_filtered:
+                        filtered_lines.append(line)
 
-            return '\n'.join(filtered_lines)
+                return '\n'.join(filtered_lines)
+
+        # 如果达到最大重定向次数，返回原始内容
+        return response.text
 
     def localProxy(self, params):
         """
