@@ -690,7 +690,7 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        proxy_url = f"{id}"
+        proxy_url = id
         # proxy_url = self.getProxyUrl() + f"&url={id}"
         # id = f"url={id}"
         # id = self.del_ads(id)
