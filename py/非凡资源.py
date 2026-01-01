@@ -29,6 +29,8 @@ class Spider(BaseSpider):
         self.IMAGE_BASE_URL = "https://img.picbf.com"
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = ['feifan']
+        # 是否使用本地代理处理播放地址
+        self.USE_PROXY = True
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
@@ -729,8 +731,55 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
-        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
+        if self.USE_PROXY:
+            # 使用本地代理方式，支持去广告
+            proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
+            return {
+                'url': proxy_url, 
+                'header': self.DEFAULT_HEADERS, 
+                'parse': 0, 
+                'jx': 0
+            }
+        else:
+            # 不使用本地代理，直接返回ID（假设ID是播放地址）
+            # 如果是M3U8格式，先尝试去广告
+            if id.lower().endswith('.m3u8') or '#EXTM3U' in id:
+                try:
+                    content = self.del_ads(id)
+                    if content and len(content) > 0:
+                        # 创建一个临时URL来提供去广告后的内容
+                        import base64
+                        encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+                        return {
+                            'url': f"data:application/vnd.apple.mpegurl;base64,{encoded_content}",
+                            'header': self.DEFAULT_HEADERS,
+                            'parse': 0,
+                            'jx': 0
+                        }
+                    else:
+                        # 去广告失败，直接返回原地址
+                        return {
+                            'url': id,
+                            'header': self.DEFAULT_HEADERS,
+                            'parse': 1,
+                            'jx': 0
+                        }
+                except Exception as e:
+                    # 如果去广告过程中出现错误，直接返回原地址
+                    return {
+                        'url': id,
+                        'header': self.DEFAULT_HEADERS,
+                        'parse': 1,
+                        'jx': 0
+                    }
+            else:
+                # 非M3U8格式，直接返回
+                return {
+                    'url': id,
+                    'header': self.DEFAULT_HEADERS,
+                    'parse': 1,
+                    'jx': 0
+                }
 
     def destroy(self):
         """
@@ -808,7 +857,6 @@ class Spider(BaseSpider):
         """
         import requests
         from urllib import parse
-        import time
 
         headers = self.DEFAULT_HEADERS
         
@@ -845,46 +893,110 @@ class Spider(BaseSpider):
             else:
                 # 处理M3U8内容，过滤广告
                 result_lines = []
+                
+                # 记录广告片段的索引，广告通常在特定的不连续点后出现
+                ad_start_indices = []
                 discontinuity_indices = []
+                i = 0
+                while i < len(lines):
+                    line = lines[i]
+                    result_lines.append(line)
+                    
+                    if line == '#EXT-X-DISCONTINUITY':
+                        discontinuity_indices.append(len(result_lines) - 1)
+                    
+                    # 检查是否有广告标记
+                    if (i + 1 < len(lines) and 
+                        '.ts' in lines[i+1] and 
+                        any(keyword in line.lower() for keyword in ['ad', 'advertisement', 'promo'])):
+                        ad_start_indices.append(len(result_lines) - 1)
+                    
+                    i += 1
 
-                for i, line in enumerate(lines):
-                    if '.ts' in line:
-                        # 处理.ts文件路径
-                        if line.startswith('http'):  # 完整URL
-                            result_lines.append(line)
-                        elif line.startswith('/'):  # 相对于根路径
-                            parsed_url = parse.urlparse(current_url)
-                            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                            result_lines.append(base_url + line)
-                        else:  # 相对于当前路径
-                            current_path = current_url.rsplit('/', maxsplit=1)[0] + '/'
-                            result_lines.append(current_path + line)
-                    elif line == '#EXT-X-DISCONTINUITY':  # 记录不连续点的索引
-                        result_lines.append(line)
-                        discontinuity_indices.append(i)
-                    else:
-                        result_lines.append(line)
+                # 识别广告片段的范围
+                ad_ranges = []
+                
+                # 方法1: 根据广告标记
+                for ad_start in ad_start_indices:
+                    # 广告通常从不连续点开始到下一个不连续点结束
+                    for j in range(len(discontinuity_indices)):
+                        if discontinuity_indices[j] > ad_start:
+                            if j+1 < len(discontinuity_indices):
+                                # 检查是否是广告段
+                                ad_end = discontinuity_indices[j+1]
+                                ad_ranges.append((ad_start, ad_end))
+                            break
+                
+                # 方法2: 根据EXT-X-DISCONTINUITY模式识别
+                # 一些广告会在两个不连续标记之间，形成特定的模式
+                for idx in range(len(discontinuity_indices) - 1):
+                    current_discontinuity = discontinuity_indices[idx]
+                    # 检查当前不连续点后是否跟着广告内容
+                    if idx + 2 < len(discontinuity_indices):
+                        next_discontinuity = discontinuity_indices[idx + 1]
+                        next_next_discontinuity = discontinuity_indices[idx + 2]
+                        
+                        # 检查是否符合广告模式：不连续点 - ts片段 - 不连续点 - ts片段 - 不连续点
+                        if (next_discontinuity == current_discontinuity + 2 and 
+                            next_next_discontinuity == next_discontinuity + 2):
+                            # 这可能是广告段，但要验证时长，广告通常较短
+                            # 检查广告段的EXTINF时长总和
+                            duration_sum = 0
+                            j = next_discontinuity
+                            while j < next_next_discontinuity and j < len(result_lines):
+                                if result_lines[j].startswith('#EXTINF:'):
+                                    try:
+                                        # 提取时长，格式如 #EXTINF:6.006,
+                                        duration_str = result_lines[j].split(',')[0].replace('#EXTINF:', '')
+                                        duration = float(duration_str)
+                                        duration_sum += duration
+                                    except:
+                                        pass
+                                j += 1
+                            
+                            # 如果广告段总时长小于阈值(如30秒)，认为是广告
+                            if duration_sum < 30:
+                                ad_ranges.append((current_discontinuity, next_next_discontinuity))
 
-                # 根据不连续点的索引确定需要过滤的范围
-                filter_ranges = []
-                if len(discontinuity_indices) >= 1:
-                    filter_ranges.append(
-                        (discontinuity_indices[0], discontinuity_indices[0]))
-                if len(discontinuity_indices) >= 3:
-                    filter_ranges.append(
-                        (discontinuity_indices[1], discontinuity_indices[2]))
-                if len(discontinuity_indices) >= 5:
-                    filter_ranges.append(
-                        (discontinuity_indices[3], discontinuity_indices[4]))
-
-                # 过滤掉指定范围内的内容
+                # 构建过滤后的内容，移除广告段
                 filtered_lines = []
-                for i, line in enumerate(result_lines):
-                    # 检查当前索引是否在任何过滤范围内
-                    is_filtered = any(
-                        start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
-                    if not is_filtered:
-                        filtered_lines.append(line)
+                skip_until_idx = -1
+                
+                for idx, line in enumerate(result_lines):
+                    is_ad = False
+                    
+                    # 检查当前索引是否在任何广告范围内
+                    for start, end in ad_ranges:
+                        if start <= idx <= end:
+                            is_ad = True
+                            break
+                    
+                    # 额外检查：如果行包含广告关键词，也过滤掉
+                    if not is_ad:
+                        lower_line = line.lower()
+                        if any(keyword in lower_line for keyword in ['ad', 'advertisement', 'promo']):
+                            is_ad = True
+                    
+                    if not is_ad and idx > skip_until_idx:
+                        # 检查是否是广告段的.ts文件行
+                        if '.ts' in line and line.startswith('http'):
+                            # 检查前一行是否是EXT-X-DISCONTINUITY
+                            prev_line_idx = idx - 1
+                            if prev_line_idx >= 0 and result_lines[prev_line_idx] == '#EXT-X-DISCONTINUITY':
+                                # 检查这个广告段是否在我们的广告范围内
+                                for start, end in ad_ranges:
+                                    if start <= prev_line_idx <= end:
+                                        is_ad = True
+                                        break
+                        
+                        if not is_ad:
+                            filtered_lines.append(line)
+                    
+                    # 如果当前行在广告范围内，检查是否需要跳过到广告段结束
+                    for start, end in ad_ranges:
+                        if idx == start:
+                            skip_until_idx = end
+                            break
 
                 return '\n'.join(filtered_lines)
 
@@ -902,5 +1014,21 @@ class Spider(BaseSpider):
             list: 代理响应结果
         """
         url = self.b64decode(params.get('url', ''))
-        content = self.del_ads(url)
-        return [200, 'application/vnd.apple.mpegurl', content]
+        
+        # 如果URL是M3U8格式，执行去广告处理
+        if url.lower().endswith('.m3u8') or 'm3u8' in url.lower():
+            content = self.del_ads(url)
+        else:
+            import requests
+            response = requests.get(url=url, headers=self.DEFAULT_HEADERS)
+            content = response.text if response.status_code == 200 else ''
+        
+        # 确定返回的内容类型
+        if url.lower().endswith('.m3u8') or 'm3u8' in url.lower():
+            content_type = 'application/vnd.apple.mpegurl'
+        elif '.mp4' in url or '.avi' in url or '.mkv' in url:
+            content_type = 'video/mp4'
+        else:
+            content_type = 'application/vnd.apple.mpegurl'
+            
+        return [200, content_type, content]
