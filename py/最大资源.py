@@ -362,22 +362,26 @@ class Spider(BaseSpider):
         """
         try:
             category_id = tid
-            if extend and 'type_id' in extend and extend['type_id']:
+            # 只有当filter为True且extend中有type_id时，才使用extend中的type_id
+            if filter and extend and 'type_id' in extend and extend['type_id']:
                 category_id = extend['type_id']
 
             params = {"ac": "detail", "t": category_id, "pg": pg}
 
-            if extend:
+            # 只有当filter为True时，才将extend中的其他筛选参数加入请求
+            if filter and extend:
                 for key, value in extend.items():
                     if key != 't' and key != 'type_id' and value:
                         params[key] = value
 
             data = self._request_data(params)
             if not data:
-                return self._get_subcategory_data(tid, pg, extend)
+                # 当使用子分类获取数据时，同样需要考虑filter参数
+                return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             if "list" not in data or not data["list"]:
-                return self._get_subcategory_data(tid, pg, extend)
+                # 当使用子分类获取数据时，同样需要考虑filter参数
+                return self._get_subcategory_data(tid, pg, extend if filter else {})
 
             videos = [
                 self._build_video_object(item)
