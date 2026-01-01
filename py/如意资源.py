@@ -29,8 +29,6 @@ class Spider(BaseSpider):
         self.IMAGE_BASE_URL = "https://img.picbf.com"
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = ['ruyi']
-        # 是否使用本地代理处理播放地址
-        self.USE_PROXY = False
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
@@ -692,12 +690,8 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        if self.USE_PROXY:
-            proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
-            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
-        else:
-            proxy_url = self.b64encode(id)
-            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
+        proxy_url = self.getProxyUrl() + f"&url={id}"
+        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
         """
@@ -735,32 +729,6 @@ class Spider(BaseSpider):
             *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
 
-    def b64encode(self, data):
-        """
-        base64编码
-
-        Args:
-            data (str): 需要编码的字符串
-
-        Returns:
-            str: base64编码后的字符串
-        """
-        import base64
-        return base64.b64encode(data.encode('utf-8')).decode('utf-8')
-
-    def b64decode(self, data):
-        """
-        base64解码
-
-        Args:
-            data (str): 需要解码的字符串
-
-        Returns:
-            str: base64解码后的字符串
-        """
-        import base64
-        return base64.b64decode(data.encode('utf-8')).decode('utf-8')
-
     def del_ads(self, url):
         """
         去广告逻辑，解析M3U8播放列表并过滤广告片段
@@ -773,6 +741,7 @@ class Spider(BaseSpider):
         """
         import requests
         from urllib import parse
+        import time
 
         headers = self.DEFAULT_HEADERS
         response = requests.get(url=url, headers=headers)
@@ -856,7 +825,6 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        url = self.b64decode(params.get('url', ''))
-        self.log(f"进入本地代理方法{url}")
+        url = params.get('url', '')
         content = self.del_ads(url)
         return [200, 'application/vnd.apple.mpegurl', content]

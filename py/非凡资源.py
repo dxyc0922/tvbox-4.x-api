@@ -29,15 +29,11 @@ class Spider(BaseSpider):
         self.IMAGE_BASE_URL = "https://img.picbf.com"
         # 需要过滤的播放源关键词列表:feifan
         self.FILTER_KEYWORDS = ['feifan']
-        # 是否使用本地代理处理播放地址
-        self.USE_PROXY = False
         # 默认请求头:"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"
         self.DEFAULT_HEADERS = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/98.0.4758.102 Safari/537.36"}
         # 分类缓存，避免重复请求:初始化
         self.CATEGORY_CACHE = None
-        # 数据缓存，用于缓存常用数据
-        self.DATA_CACHE = {}
         # 一级分类关键字，用于识别主分类
         self.PRIMARY_CATEGORIES_KEYWORDS = [
             '影视解说', '电影解说', '电影', '电影片', '电视剧', '连续剧', '综艺', '动漫', '纪录片', '演唱会', '音乐', '体育', '体育赛事', '短剧', '爽文短剧', '短剧大全']
@@ -68,13 +64,6 @@ class Spider(BaseSpider):
         Returns:
             dict or None: 成功时返回解析后的数据，失败时返回None
         """
-        # 生成缓存键
-        cache_key = f"api_data_{str(params)}"
-        
-        # 检查缓存
-        if cache_key in self.DATA_CACHE:
-            return self.DATA_CACHE[cache_key]
-        
         import time
         for attempt in range(retries):
             try:
@@ -84,12 +73,8 @@ class Spider(BaseSpider):
                     data = json.loads(response.text)
                     if data is not None:
                         if "code" in data and data["code"] in (0, 1):
-                            # 缓存结果
-                            self.DATA_CACHE[cache_key] = data
                             return data
                         elif "list" in data:
-                            # 缓存结果
-                            self.DATA_CACHE[cache_key] = data
                             return data
                 else:
                     pass
@@ -116,14 +101,6 @@ class Spider(BaseSpider):
             dict or None: 成功时返回解析后的数据，失败时返回None
         """
         import time
-        
-        # 生成缓存键
-        cache_key = f"ajax_data_{tid}_{pg}_{limit}"
-        
-        # 检查缓存
-        if cache_key in self.DATA_CACHE:
-            return self.DATA_CACHE[cache_key]
-        
         params = {
             "mid": "1",
             "tid": tid,
@@ -138,8 +115,6 @@ class Spider(BaseSpider):
                 if response.status_code == 200:
                     data = json.loads(response.text)
                     if data and "list" in data:
-                        # 缓存结果
-                        self.DATA_CACHE[cache_key] = data
                         return data
                 else:
                     pass
@@ -181,26 +156,6 @@ class Spider(BaseSpider):
             "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
             "type_name": item.get("type_name", "")
         }
-
-    def _batch_process_videos(self, raw_items, batch_size=20):
-        """
-        分批处理视频数据，减少内存占用
-
-        Args:
-            raw_items (list): 原始视频数据列表
-            batch_size (int): 批处理大小
-
-        Yields:
-            list: 批处理后的视频对象列表
-        """
-        for i in range(0, len(raw_items), batch_size):
-            batch = raw_items[i:i + batch_size]
-            processed_batch = [
-                self._build_video_object(item)
-                for item in batch
-                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
-            ]
-            yield processed_batch
 
     def getName(self):
         """
@@ -408,10 +363,11 @@ class Spider(BaseSpider):
                     params = {"ac": "detail", "pg": "1"}
                     api_data = self._request_data(params)
                     if api_data and "list" in api_data and api_data["list"]:
-                        api_videos = []
-                        # 使用分批处理API数据
-                        for batch in self._batch_process_videos(api_data.get("list", [])):
-                            api_videos.extend(batch)
+                        api_videos = [
+                            self._build_video_object(item)
+                            for item in api_data.get("list", [])
+                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                        ]
                         # 优先使用API数据，因为数量可能更多
                         if len(api_videos) > len(videos):
                             return {"list": api_videos}
@@ -430,10 +386,11 @@ class Spider(BaseSpider):
             if "list" not in data or not data["list"]:
                 return {"list": []}
 
-            videos = []
-            # 使用分批处理
-            for batch in self._batch_process_videos(data.get("list", [])):
-                videos.extend(batch)
+            videos = [
+                self._build_video_object(item)
+                for item in data.get("list", [])
+                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+            ]
 
             result = {"list": videos}
             return result
@@ -472,11 +429,11 @@ class Spider(BaseSpider):
                     api_data = self._request_data(params)
                     if api_data and "list" in api_data and api_data["list"]:
                         # 优先使用API数据
-                        videos = []
-                        # 使用分批处理API数据
-                        for batch in self._batch_process_videos(api_data.get("list", [])):
-                            videos.extend(batch)
-                        
+                        videos = [
+                            self._build_video_object(item)
+                            for item in api_data.get("list", [])
+                            if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+                        ]
                         result = {
                             "list": videos,
                             "page": int(api_data.get("page", pg)),
@@ -505,10 +462,11 @@ class Spider(BaseSpider):
                 # 如果API接口返回的数据没有列表，再尝试获取子分类数据
                 return self._get_subcategory_data(tid, pg, extend if filter else {})
 
-            videos = []
-            # 使用分批处理
-            for batch in self._batch_process_videos(data.get("list", [])):
-                videos.extend(batch)
+            videos = [
+                self._build_video_object(item)
+                for item in data.get("list", [])
+                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+            ]
 
             result = {
                 "list": videos,
@@ -602,7 +560,7 @@ class Spider(BaseSpider):
                     ]
                 return []
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
                 futures = [executor.submit(
                     fetch_subcategory_videos, sub_cat) for sub_cat in sub_categories]
                 for future in concurrent.futures.as_completed(futures):
@@ -703,10 +661,11 @@ class Spider(BaseSpider):
                     "total": int(data.get("total", 0))
                 }
 
-            videos = []
-            # 使用分批处理
-            for batch in self._batch_process_videos(data.get("list", [])):
-                videos.extend(batch)
+            videos = [
+                self._build_video_object(item)
+                for item in data.get("list", [])
+                if str(item.get("type_id")) not in {str(cat_id) for cat_id in self.EXCLUDE_CATEGORIES}
+            ]
 
             result = {
                 "list": videos,
@@ -731,63 +690,14 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        if self.USE_PROXY:
-            # 使用本地代理方式，支持去广告
-            proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
-            return {
-                'url': proxy_url, 
-                'header': self.DEFAULT_HEADERS, 
-                'parse': 0, 
-                'jx': 0
-            }
-        else:
-            # 不使用本地代理，直接返回ID（假设ID是播放地址）
-            # 如果是M3U8格式，先尝试去广告
-            if id.lower().endswith('.m3u8') or '#EXTM3U' in id:
-                try:
-                    content = self.del_ads(id)
-                    if content and len(content) > 0:
-                        # 创建一个临时URL来提供去广告后的内容
-                        import base64
-                        encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
-                        return {
-                            'url': f"data:application/vnd.apple.mpegurl;base64,{encoded_content}",
-                            'header': self.DEFAULT_HEADERS,
-                            'parse': 0,
-                            'jx': 0
-                        }
-                    else:
-                        # 去广告失败，直接返回原地址
-                        return {
-                            'url': id,
-                            'header': self.DEFAULT_HEADERS,
-                            'parse': 1,
-                            'jx': 0
-                        }
-                except Exception as e:
-                    # 如果去广告过程中出现错误，直接返回原地址
-                    return {
-                        'url': id,
-                        'header': self.DEFAULT_HEADERS,
-                        'parse': 1,
-                        'jx': 0
-                    }
-            else:
-                # 非M3U8格式，直接返回
-                return {
-                    'url': id,
-                    'header': self.DEFAULT_HEADERS,
-                    'parse': 1,
-                    'jx': 0
-                }
+        proxy_url = self.getProxyUrl() + f"&url={id}"
+        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
         """
         销毁爬虫实例，释放资源
         """
-        # 清空缓存
-        self.CATEGORY_CACHE = None
-        self.DATA_CACHE = {}
+        pass
 
     def _filter_play_sources(self, play_from, play_url):
         """
@@ -819,32 +729,6 @@ class Spider(BaseSpider):
             *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
 
-    def b64encode(self, data):
-        """
-        base64编码
-
-        Args:
-            data (str): 需要编码的字符串
-
-        Returns:
-            str: base64编码后的字符串
-        """
-        import base64
-        return base64.b64encode(data.encode('utf-8')).decode('utf-8')
-
-    def b64decode(self, data):
-        """
-        base64解码
-
-        Args:
-            data (str): 需要解码的字符串
-
-        Returns:
-            str: base64解码后的字符串
-        """
-        import base64
-        return base64.b64decode(data.encode('utf-8')).decode('utf-8')
-
     def del_ads(self, url):
         """
         去广告逻辑，解析M3U8播放列表并过滤广告片段
@@ -857,151 +741,79 @@ class Spider(BaseSpider):
         """
         import requests
         from urllib import parse
+        import time
 
         headers = self.DEFAULT_HEADERS
-        
-        # 使用循环而不是递归处理M3U8链式引用
-        current_url = url
-        max_redirects = 5  # 限制最大重定向次数，防止无限循环
-        redirects_count = 0
-        
-        while redirects_count < max_redirects:
-            response = requests.get(url=current_url, headers=headers)
+        response = requests.get(url=url, headers=headers)
 
-            if response.status_code != 200:
-                return ''
+        if response.status_code != 200:
+            return ''
 
-            lines = response.text.splitlines()
+        lines = response.text.splitlines()
 
-            # 检查是否是M3U8格式，并且是否有混合内容
-            if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
-                # 解析当前URL的协议和域名部分
-                parsed_url = parse.urlparse(current_url)
-                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        # 检查是否是M3U8格式，并且是否有混合内容
+        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
+            # 解析当前URL的协议和域名部分
+            parsed_url = parse.urlparse(url)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-                # 确定新的URL
-                next_url = lines[2]
-                if next_url.startswith('http'):  # 完整URL
-                    current_url = next_url
-                elif next_url.startswith('/'):  # 相对于根路径
-                    current_url = base_url + next_url
-                else:  # 相对于当前路径
-                    current_path = current_url.rsplit('/', maxsplit=1)[0] + '/'
-                    current_url = current_path + next_url
-                
-                redirects_count += 1
-            else:
-                # 处理M3U8内容，过滤广告
-                result_lines = []
-                
-                # 记录广告片段的索引，广告通常在特定的不连续点后出现
-                ad_start_indices = []
-                discontinuity_indices = []
-                i = 0
-                while i < len(lines):
-                    line = lines[i]
+            # 确定新的URL
+            next_url = lines[2]
+            if next_url.startswith('http'):  # 完整URL
+                new_url = next_url
+            elif next_url.startswith('/'):  # 相对于根路径
+                new_url = base_url + next_url
+            else:  # 相对于当前路径
+                current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                new_url = current_path + next_url
+
+            # 递归处理
+            return self.del_ads(new_url)
+        else:
+            # 处理M3U8内容，过滤广告
+            result_lines = []
+            discontinuity_indices = []
+
+            for i, line in enumerate(lines):
+                if '.ts' in line:
+                    # 处理.ts文件路径
+                    if line.startswith('http'):  # 完整URL
+                        result_lines.append(line)
+                    elif line.startswith('/'):  # 相对于根路径
+                        parsed_url = parse.urlparse(url)
+                        base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                        result_lines.append(base_url + line)
+                    else:  # 相对于当前路径
+                        current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                        result_lines.append(current_path + line)
+                elif line == '#EXT-X-DISCONTINUITY':  # 记录不连续点的索引
                     result_lines.append(line)
-                    
-                    if line == '#EXT-X-DISCONTINUITY':
-                        discontinuity_indices.append(len(result_lines) - 1)
-                    
-                    # 检查是否有广告标记
-                    if (i + 1 < len(lines) and 
-                        '.ts' in lines[i+1] and 
-                        any(keyword in line.lower() for keyword in ['ad', 'advertisement', 'promo'])):
-                        ad_start_indices.append(len(result_lines) - 1)
-                    
-                    i += 1
+                    discontinuity_indices.append(i)
+                else:
+                    result_lines.append(line)
 
-                # 识别广告片段的范围
-                ad_ranges = []
-                
-                # 方法1: 根据广告标记
-                for ad_start in ad_start_indices:
-                    # 广告通常从不连续点开始到下一个不连续点结束
-                    for j in range(len(discontinuity_indices)):
-                        if discontinuity_indices[j] > ad_start:
-                            if j+1 < len(discontinuity_indices):
-                                # 检查是否是广告段
-                                ad_end = discontinuity_indices[j+1]
-                                ad_ranges.append((ad_start, ad_end))
-                            break
-                
-                # 方法2: 根据EXT-X-DISCONTINUITY模式识别
-                # 一些广告会在两个不连续标记之间，形成特定的模式
-                for idx in range(len(discontinuity_indices) - 1):
-                    current_discontinuity = discontinuity_indices[idx]
-                    # 检查当前不连续点后是否跟着广告内容
-                    if idx + 2 < len(discontinuity_indices):
-                        next_discontinuity = discontinuity_indices[idx + 1]
-                        next_next_discontinuity = discontinuity_indices[idx + 2]
-                        
-                        # 检查是否符合广告模式：不连续点 - ts片段 - 不连续点 - ts片段 - 不连续点
-                        if (next_discontinuity == current_discontinuity + 2 and 
-                            next_next_discontinuity == next_discontinuity + 2):
-                            # 这可能是广告段，但要验证时长，广告通常较短
-                            # 检查广告段的EXTINF时长总和
-                            duration_sum = 0
-                            j = next_discontinuity
-                            while j < next_next_discontinuity and j < len(result_lines):
-                                if result_lines[j].startswith('#EXTINF:'):
-                                    try:
-                                        # 提取时长，格式如 #EXTINF:6.006,
-                                        duration_str = result_lines[j].split(',')[0].replace('#EXTINF:', '')
-                                        duration = float(duration_str)
-                                        duration_sum += duration
-                                    except:
-                                        pass
-                                j += 1
-                            
-                            # 如果广告段总时长小于阈值(如30秒)，认为是广告
-                            if duration_sum < 30:
-                                ad_ranges.append((current_discontinuity, next_next_discontinuity))
+            # 根据不连续点的索引确定需要过滤的范围
+            filter_ranges = []
+            if len(discontinuity_indices) >= 1:
+                filter_ranges.append(
+                    (discontinuity_indices[0], discontinuity_indices[0]))
+            if len(discontinuity_indices) >= 3:
+                filter_ranges.append(
+                    (discontinuity_indices[1], discontinuity_indices[2]))
+            if len(discontinuity_indices) >= 5:
+                filter_ranges.append(
+                    (discontinuity_indices[3], discontinuity_indices[4]))
 
-                # 构建过滤后的内容，移除广告段
-                filtered_lines = []
-                skip_until_idx = -1
-                
-                for idx, line in enumerate(result_lines):
-                    is_ad = False
-                    
-                    # 检查当前索引是否在任何广告范围内
-                    for start, end in ad_ranges:
-                        if start <= idx <= end:
-                            is_ad = True
-                            break
-                    
-                    # 额外检查：如果行包含广告关键词，也过滤掉
-                    if not is_ad:
-                        lower_line = line.lower()
-                        if any(keyword in lower_line for keyword in ['ad', 'advertisement', 'promo']):
-                            is_ad = True
-                    
-                    if not is_ad and idx > skip_until_idx:
-                        # 检查是否是广告段的.ts文件行
-                        if '.ts' in line and line.startswith('http'):
-                            # 检查前一行是否是EXT-X-DISCONTINUITY
-                            prev_line_idx = idx - 1
-                            if prev_line_idx >= 0 and result_lines[prev_line_idx] == '#EXT-X-DISCONTINUITY':
-                                # 检查这个广告段是否在我们的广告范围内
-                                for start, end in ad_ranges:
-                                    if start <= prev_line_idx <= end:
-                                        is_ad = True
-                                        break
-                        
-                        if not is_ad:
-                            filtered_lines.append(line)
-                    
-                    # 如果当前行在广告范围内，检查是否需要跳过到广告段结束
-                    for start, end in ad_ranges:
-                        if idx == start:
-                            skip_until_idx = end
-                            break
+            # 过滤掉指定范围内的内容
+            filtered_lines = []
+            for i, line in enumerate(result_lines):
+                # 检查当前索引是否在任何过滤范围内
+                is_filtered = any(
+                    start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
+                if not is_filtered:
+                    filtered_lines.append(line)
 
-                return '\n'.join(filtered_lines)
-
-        # 如果达到最大重定向次数，返回原始内容
-        return response.text
+            return '\n'.join(filtered_lines)
 
     def localProxy(self, params):
         """
@@ -1013,22 +825,6 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        url = self.b64decode(params.get('url', ''))
-        
-        # 如果URL是M3U8格式，执行去广告处理
-        if url.lower().endswith('.m3u8') or 'm3u8' in url.lower():
-            content = self.del_ads(url)
-        else:
-            import requests
-            response = requests.get(url=url, headers=self.DEFAULT_HEADERS)
-            content = response.text if response.status_code == 200 else ''
-        
-        # 确定返回的内容类型
-        if url.lower().endswith('.m3u8') or 'm3u8' in url.lower():
-            content_type = 'application/vnd.apple.mpegurl'
-        elif '.mp4' in url or '.avi' in url or '.mkv' in url:
-            content_type = 'video/mp4'
-        else:
-            content_type = 'application/vnd.apple.mpegurl'
-            
-        return [200, content_type, content]
+        url = params.get('url', '')
+        content = self.del_ads(url)
+        return [200, 'application/vnd.apple.mpegurl', content]
