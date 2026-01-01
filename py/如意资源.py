@@ -690,7 +690,7 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
+        proxy_url = self.getProxyUrl() + f"&url={id}"
         return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
@@ -728,32 +728,6 @@ class Spider(BaseSpider):
         filtered_from_list, filtered_url_list = zip(
             *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
-
-    def b64encode(self, data):
-        """
-        base64编码
-
-        Args:
-            data (str): 需要编码的字符串
-
-        Returns:
-            str: base64编码后的字符串
-        """
-        import base64
-        return base64.b64encode(data.encode('utf-8')).decode('utf-8')
-
-    def b64decode(self, data):
-        """
-        base64解码
-
-        Args:
-            data (str): 需要解码的字符串
-
-        Returns:
-            str: base64解码后的字符串
-        """
-        import base64
-        return base64.b64decode(data.encode('utf-8')).decode('utf-8')
 
     def del_ads(self, url):
         """
@@ -852,6 +826,6 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        url = self.b64decode(params.get('url', ''))
+        url = params.get('url', '')
         content = self.del_ads(url)
         return [200, 'application/vnd.apple.mpegurl', content]
