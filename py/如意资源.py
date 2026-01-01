@@ -697,7 +697,7 @@ class Spider(BaseSpider):
             return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
         else:
             proxy_url = self.b64encode(id)
-            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 1, 'jx': 0}
+            return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
         """
@@ -856,7 +856,7 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        self.log("进入本地代理方法")
         url = self.b64decode(params.get('url', ''))
+        self.log(f"进入本地代理方法{url}")
         content = self.del_ads(url)
         return [200, 'application/vnd.apple.mpegurl', content]
