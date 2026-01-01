@@ -110,23 +110,34 @@ class Spider(BaseSpider):
         Returns:
             dict: 标准格式的视频信息字典
         """
-        vod_pic = item.get("vod_pic", "")
-        if vod_pic and not vod_pic.startswith(('http://', 'https://')):
+        vod_pic = str(item.get("vod_pic", ""))
+        if vod_pic and not vod_pic.startswith(('http://', 'https://')) and self.IMAGE_BASE_URL:
             vod_pic = self.IMAGE_BASE_URL + "/" + vod_pic.lstrip('/')
+
+        # 针对Android 4.4兼容性问题，对最大资源的图片URL进行处理
+        # 使用通用图片代理服务，绕过防盗链或TLS/SSL兼容性问题
+        # 特别是 ok.zuidapic.com 对旧版Android的TLS协议支持可能有问题
+        if vod_pic and 'ok.zuidapic.com' in vod_pic:
+            from urllib.parse import quote
+            # 使用兼容性更好的图片代理服务
+            # 使用一个可能支持旧版TLS协议的代理服务
+            # 通过将HTTPS转换为HTTP代理，让代理服务器处理SSL连接
+            clean_url = vod_pic.replace('https://', '')
+            vod_pic = f"https://images.weserv.nl/?url={quote(clean_url)}"
 
         return {
             "vod_id": str(item["vod_id"]),
-            "vod_name": item["vod_name"],
+            "vod_name": str(item["vod_name"]),
             "vod_pic": vod_pic,
-            "vod_remarks": item.get("vod_remarks", ""),
-            "vod_time": item.get("vod_time", ""),
-            "vod_year": item.get("vod_year", ""),
-            "vod_area": item.get("vod_area", ""),
-            "vod_lang": item.get("vod_lang", ""),
-            "vod_actor": item.get("vod_actor", ""),
-            "vod_director": item.get("vod_director", ""),
-            "vod_content": self.removeHtmlTags(item.get("vod_content", "")),
-            "type_name": item.get("type_name", "")
+            "vod_remarks": str(item.get("vod_remarks", "")),
+            "vod_time": str(item.get("vod_time", "")),
+            "vod_year": str(item.get("vod_year", "")),
+            "vod_area": str(item.get("vod_area", "")),
+            "vod_lang": str(item.get("vod_lang", "")),
+            "vod_actor": str(item.get("vod_actor", "")),
+            "vod_director": str(item.get("vod_director", "")),
+            "vod_content": str(self.removeHtmlTags(item.get("vod_content", ""))),
+            "type_name": str(item.get("type_name", ""))
         }
 
     def getName(self):
