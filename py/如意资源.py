@@ -371,7 +371,7 @@ class Spider(BaseSpider):
                         # 优先使用API数据，因为数量可能更多
                         if len(api_videos) > len(videos):
                             return {"list": api_videos}
-
+                
                 return {"list": videos}
 
             # 如果AJAX接口没有返回数据，再尝试使用API接口
@@ -690,12 +690,8 @@ class Spider(BaseSpider):
         Returns:
             dict: 包含播放地址和相关参数的字典
         """
-        proxy_url = id
-        # proxy_url = self.getProxyUrl() + f"&url={id}"
-        # id = f"url={id}"
-        # id = self.del_ads(id)
-        # return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 1, 'jx': 1}
-        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
+        proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
+        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 1}
 
     def destroy(self):
         """
@@ -733,6 +729,32 @@ class Spider(BaseSpider):
             *filtered_pairs) if filtered_pairs else ([], [])
         return "$$$".join(filtered_from_list), "$$$".join(filtered_url_list)
 
+    def b64encode(self, data):
+        """
+        base64编码
+
+        Args:
+            data (str): 需要编码的字符串
+
+        Returns:
+            str: base64编码后的字符串
+        """
+        import base64
+        return base64.b64encode(data.encode('utf-8')).decode('utf-8')
+
+    def b64decode(self, data):
+        """
+        base64解码
+
+        Args:
+            data (str): 需要解码的字符串
+
+        Returns:
+            str: base64解码后的字符串
+        """
+        import base64
+        return base64.b64decode(data.encode('utf-8')).decode('utf-8')
+
     def del_ads(self, url):
         """
         去广告逻辑，解析M3U8播放列表并过滤广告片段
@@ -747,7 +769,6 @@ class Spider(BaseSpider):
         from urllib import parse
 
         headers = self.DEFAULT_HEADERS
-        self.log(f"[del_ads] url: {url}")
         response = requests.get(url=url, headers=headers)
 
         if response.status_code != 200:
@@ -829,6 +850,8 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        url = params.get('url', '')
+        url = self.b64decode(params.get('url', ''))
+        self.log(f'localProxy: {url}')
         content = self.del_ads(url)
+        self.log(f'localProxy: {content}')
         return [200, 'application/vnd.apple.mpegurl', content]
