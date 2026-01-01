@@ -371,7 +371,7 @@ class Spider(BaseSpider):
                         # 优先使用API数据，因为数量可能更多
                         if len(api_videos) > len(videos):
                             return {"list": api_videos}
-                
+
                 return {"list": videos}
 
             # 如果AJAX接口没有返回数据，再尝试使用API接口
@@ -691,6 +691,7 @@ class Spider(BaseSpider):
             dict: 包含播放地址和相关参数的字典
         """
         # proxy_url = self.getProxyUrl() + f"&url={id}"
+        id = f"url={id}"
         id = self.del_ads(id)
         return {'url': id, 'header': self.DEFAULT_HEADERS, 'parse': 1, 'jx': 1}
         # return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
@@ -745,6 +746,7 @@ class Spider(BaseSpider):
         from urllib import parse
 
         headers = self.DEFAULT_HEADERS
+        self.log(f"[del_ads] url: {url}")
         response = requests.get(url=url, headers=headers)
 
         if response.status_code != 200:
