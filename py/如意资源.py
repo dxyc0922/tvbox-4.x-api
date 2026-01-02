@@ -1012,6 +1012,14 @@ class Spider(BaseSpider):
             self.log(f"本地代理接收到URL: {url}")
             content = self.del_ads(url)
             self.log(f"去广告处理完成，返回内容长度: {len(content) if content else 0}")
+            
+            # 添加调试日志，输出M3U8内容的前几行和后几行
+            if content:
+                lines = content.split('\n')
+                # 输出内容
+                for i, line in enumerate(lines[:len(lines)]):
+                    self.log(f"  行 {i+1}: {line}")
+            
             return [200, 'application/vnd.apple.mpegurl', content]
         except Exception as e:
             self.log(f"本地代理处理出错: {str(e)}")
