@@ -755,6 +755,156 @@ class Spider(BaseSpider):
         import base64
         return base64.b64decode(data.encode('utf-8')).decode('utf-8')
 
+    def _filter_ads_by_discontinuity_original(self, lines, original_url):
+        """
+        根据不连续点过滤广告，使用与非凡资源.py相同的逻辑
+
+        Args:
+            lines (list): M3U8内容的行列表
+            original_url (str): 原始URL
+
+        Returns:
+            str: 过滤后的内容
+        """
+        # 处理M3U8内容，过滤广告
+        result_lines = []
+        discontinuity_indices = []
+
+        from urllib import parse
+
+        for i, line in enumerate(lines):
+            if '.ts' in line:
+                # 处理.ts文件路径
+                if line.startswith('http'):  # 完整URL
+                    result_lines.append(line)
+                elif line.startswith('/'):  # 相对于根路径
+                    parsed_url = parse.urlparse(original_url)
+                    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                    result_lines.append(base_url + line)
+                else:  # 相对于当前路径
+                    current_path = original_url.rsplit('/', maxsplit=1)[0] + '/'
+                    result_lines.append(current_path + line)
+            elif line == '#EXT-X-DISCONTINUITY':  # 记录不连续点的索引
+                result_lines.append(line)
+                discontinuity_indices.append(i)
+            else:
+                result_lines.append(line)
+
+        # 根据不连续点的索引确定需要过滤的范围
+        filter_ranges = []
+        if len(discontinuity_indices) >= 1:
+            filter_ranges.append(
+                (discontinuity_indices[0], discontinuity_indices[0]))
+        if len(discontinuity_indices) >= 3:
+            filter_ranges.append(
+                (discontinuity_indices[1], discontinuity_indices[2]))
+        if len(discontinuity_indices) >= 5:
+            filter_ranges.append(
+                (discontinuity_indices[3], discontinuity_indices[4]))
+
+        # 过滤掉指定范围内的内容
+        filtered_lines = []
+        for i, line in enumerate(result_lines):
+            # 检查当前索引是否在任何过滤范围内
+            is_filtered = any(
+                start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
+            if not is_filtered:
+                filtered_lines.append(line)
+
+        return '\n'.join(filtered_lines)
+
+    def _filter_ads_by_duration(self, url, lines, presets):
+        """
+        使用时长片段模式过滤广告（模式2）
+        
+        Args:
+            url (str): 原始M3U8 URL
+            lines (list): M3U8内容行列表
+            presets (list): 预设的时长片段列表
+            
+        Returns:
+            str: 过滤广告后的M3U8内容
+        """
+        from urllib import parse
+        import re
+        
+        def extract_duration(line):
+            """从EXTINF行提取持续时间"""
+            match = re.search(r'#EXTINF:([\d.]+)', line)
+            return float(match.group(1)) if match else 0
+
+        def is_close_duration_list(durations, preset, tolerance=0.5):
+            """检查时长列表是否接近预设值"""
+            if len(durations) != len(preset):
+                return False
+            return all(abs(d - p) < tolerance for d, p in zip(durations, preset))
+
+        # 构建新的行列表
+        result_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # 处理.ts文件路径
+            if '.ts' in line:
+                if line.startswith('http'):
+                    result_lines.append(line)
+                elif line.startswith('/'):
+                    parsed_url = parse.urlparse(url)
+                    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                    result_lines.append(base_url + line)
+                else:
+                    current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                    result_lines.append(current_path + line)
+            else:
+                result_lines.append(line)
+                
+            i += 1
+
+        # 分析时长片段
+        duration_sequences = []
+        current_sequence = []
+        
+        for i, line in enumerate(result_lines):
+            if line.startswith('#EXTINF:'):
+                duration = extract_duration(line)
+                current_sequence.append(duration)
+            elif line == '#EXT-X-DISCONTINUITY' and current_sequence:
+                duration_sequences.append({
+                    'durations': current_sequence,
+                    'start_idx': i - len(current_sequence) * 2,  # 考虑EXTINF和.ts行
+                    'end_idx': i - 1
+                })
+                current_sequence = []
+                
+        # 在循环结束后检查最后一个序列
+        if current_sequence:
+            duration_sequences.append({
+                'durations': current_sequence,
+                'start_idx': len(result_lines) - len(current_sequence) * 2,
+                'end_idx': len(result_lines) - 1
+            })
+
+        # 找到匹配预设的广告片段
+        ad_ranges = []
+        for sequence in duration_sequences:
+            for preset in presets:
+                if is_close_duration_list(sequence['durations'], preset):
+                    ad_ranges.append((sequence['start_idx'], sequence['end_idx']))
+                    break
+
+        # 过滤广告片段
+        final_lines = []
+        i = 0
+        while i < len(result_lines):
+            # 检查当前行是否在广告范围内
+            in_ad_range = any(start <= i <= end for start, end in ad_ranges)
+            if not in_ad_range:
+                final_lines.append(result_lines[i])
+            i += 1
+
+        return '\n'.join(final_lines)
+
     def del_ads(self, url):
         """
         去广告逻辑，解析M3U8播放列表并过滤广告片段
@@ -834,237 +984,12 @@ class Spider(BaseSpider):
 
         if discontinuity_count < 10:
             self.log("使用模式1: 根据不连续点过滤广告")
-            # 模式1: 根据不连续点过滤广告
-            return self._filter_ads_by_discontinuity(lines)
+            # 模式1: 直接使用非凡资源.py的处理方式，保证与非凡资源.py一致
+            return self._filter_ads_by_discontinuity_original(lines, url)
         else:
             self.log("使用模式2: 根据预设的连续时长片段判断广告")
             # 模式2: 根据预设的连续时长片段判断广告
             return self._filter_ads_by_duration(url, lines, PRESETS)
-
-    def _filter_ads_by_discontinuity(self, lines):
-        """
-        根据不连续点过滤广告
-
-        Args:
-            lines (list): M3U8内容的行列表
-
-        Returns:
-            str: 过滤后的内容
-        """
-        self.log(f"开始根据不连续点过滤广告，总行数: {len(lines)}")
-
-        # 直接使用原始行，不进行额外处理
-        discontinuity_indices = []
-
-        for i, line in enumerate(lines):
-            line_stripped = line.strip()
-            if line_stripped == '#EXT-X-DISCONTINUITY':
-                discontinuity_indices.append(i)  # 记录原始行中的位置
-
-        self.log(f"发现不连续点索引: {discontinuity_indices}")
-
-        # 根据不连续点的索引确定需要过滤的范围
-        filter_ranges = []
-        if len(discontinuity_indices) >= 1:
-            filter_ranges.append(
-                (discontinuity_indices[0], discontinuity_indices[0]))
-            self.log(f"添加过滤范围1: {filter_ranges[-1]}")
-        if len(discontinuity_indices) >= 3:
-            filter_ranges.append(
-                (discontinuity_indices[1], discontinuity_indices[2]))
-            self.log(f"添加过滤范围2: {filter_ranges[-1]}")
-        if len(discontinuity_indices) >= 5:
-            filter_ranges.append(
-                (discontinuity_indices[3], discontinuity_indices[4]))
-            self.log(f"添加过滤范围3: {filter_ranges[-1]}")
-
-        self.log(f"总共定义的过滤范围: {filter_ranges}")
-
-        # 过滤掉指定范围内的内容
-        filtered_lines = []
-        for i, line in enumerate(lines):
-            # 检查当前索引是否在任何过滤范围内
-            is_filtered = any(
-                start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
-            if not is_filtered:
-                filtered_lines.append(line)
-            else:
-                self.log(f"过滤掉索引 {i} 处的行: {line}")
-
-        # 处理.ts文件链接，确保是完整URL
-        result_lines = []
-        for line in filtered_lines:
-            stripped_line = line.strip()
-            if '.ts' in stripped_line and not stripped_line.startswith('#'):
-                # 这是一个.ts文件链接，需要检查是相对还是绝对
-                if stripped_line.startswith('http'):
-                    # 已经是完整URL
-                    result_lines.append(stripped_line)
-                elif stripped_line.startswith('/'):
-                    # 相对于根路径，需要添加原始URL的协议和域名
-                    parsed_url = parse.urlparse(self.original_m3u8_url)
-                    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                    result_lines.append(base_url + stripped_line)
-                else:
-                    # 相对于当前路径，需要添加当前目录路径
-                    current_path = self.original_m3u8_url.rsplit('/', maxsplit=1)[0] + '/'
-                    result_lines.append(current_path + stripped_line)
-            else:
-                # 不是.ts文件链接，直接添加
-                result_lines.append(line)
-        
-        result = '\n'.join(result_lines)
-        self.log(f"过滤后内容长度: {len(result)}")
-        return result
-
-    def _filter_ads_by_duration(self, original_url, lines, presets):
-        """
-        根据预设的连续时长片段判断广告
-
-        Args:
-            original_url (str): 原始URL
-            lines (list): M3U8内容的行列表
-            presets (list): 预设时长列表
-
-        Returns:
-            str: 过滤后的内容
-        """
-        # 保存原始URL供后续使用
-        self.original_m3u8_url = original_url
-        import re
-        from urllib import parse
-
-        self.log(f"开始根据时长过滤广告，原始URL: {original_url}")
-        self.log(f"M3U8行数: {len(lines)}")
-
-        # 顺序遍历M3U8内容，寻找匹配的广告片段
-        i = 0
-        while i < len(lines):
-            line = lines[i].strip()
-
-            if line == '#EXT-X-DISCONTINUITY':
-                # 检查从当前位置开始的#EXTINF时长是否与任一预设匹配
-                matched_preset = None
-                matched_end_idx = -1
-
-                # 对每个预设尝试匹配
-                for preset_idx, preset in enumerate(presets):
-                    # 检查当前不连续标签后是否有足够的行来匹配预设
-                    j = i + 1  # 从不连续标签的下一行开始
-                    match_success = True
-                    preset_match_count = 0  # 匹配的#EXTINF数量
-
-                    # 遍历预设中的每个时长，与后续的#EXTINF进行匹配
-                    for preset_duration in preset:
-                        found_extinf = False
-
-                        # 在当前不连续标签后的行中寻找#EXTINF
-                        while j < len(lines):
-                            check_line = lines[j].strip()
-
-                            if check_line.startswith('#EXTINF:'):
-                                # 提取时长
-                                match = re.search(
-                                    r'#EXTINF:(\d+\.?\d*)', check_line)
-                                if match:
-                                    duration = float(match.group(1))
-
-                                    # 检查是否与预设时长匹配
-                                    if duration == preset_duration:
-                                        preset_match_count += 1
-                                        j += 1
-                                        found_extinf = True
-                                        break
-                                    else:
-                                        match_success = False
-                                        break
-                                else:
-                                    j += 1
-                            elif check_line == '#EXT-X-DISCONTINUITY':
-                                # 如果在找到足够的#EXTINF之前遇到了下一个不连续标签，匹配失败
-                                match_success = False
-                                break
-                            else:
-                                j += 1
-
-                        if not match_success:
-                            break
-
-                    # 如果整个预设都匹配成功
-                    if match_success and preset_match_count == len(preset):
-                        self.log(f"找到匹配的预设 {preset_idx}: {preset}")
-                        matched_preset = preset
-                        matched_end_idx = j  # 匹配结束的位置
-                        break
-
-                # 如果找到匹配的预设，则移除整个广告片段
-                if matched_preset is not None:
-                    self.log(
-                        f"使用预设 {preset_idx} 过滤广告，从行 {i} 到行 {matched_end_idx-1}")
-
-                    # 构建过滤后的内容
-                    filtered_lines = []
-
-                    # 添加匹配片段之前的内容
-                    for k in range(i):
-                        filtered_lines.append(lines[k])
-
-                    # 跳过匹配的广告片段，添加剩余内容
-                    for k in range(matched_end_idx, len(lines)):
-                        filtered_lines.append(lines[k])
-
-                    # 处理.ts文件链接，确保是完整URL
-                    result_lines = []
-                    for line in filtered_lines:
-                        stripped_line = line.strip()
-                        if '.ts' in stripped_line and not stripped_line.startswith('#'):
-                            # 这是一个.ts文件链接，需要检查是相对还是绝对
-                            if stripped_line.startswith('http'):
-                                # 已经是完整URL
-                                result_lines.append(stripped_line)
-                            elif stripped_line.startswith('/'):
-                                # 相对于根路径，需要添加原始URL的协议和域名
-                                parsed_url = parse.urlparse(self.original_m3u8_url)
-                                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                                result_lines.append(base_url + stripped_line)
-                            else:
-                                # 相对于当前路径，需要添加当前目录路径
-                                current_path = self.original_m3u8_url.rsplit('/', maxsplit=1)[0] + '/'
-                                result_lines.append(current_path + stripped_line)
-                        else:
-                            # 不是.ts文件链接，直接添加
-                            result_lines.append(line)
-                    
-                    result = '\n'.join(result_lines)
-                    self.log(f"过滤后内容长度: {len(result)}")
-                    return result
-            i += 1
-
-        # 没有匹配到预设，返回原始内容，但需要处理.ts链接
-        result_lines = []
-        for line in lines:
-            stripped_line = line.strip()
-            if '.ts' in stripped_line and not stripped_line.startswith('#'):
-                # 这是一个.ts文件链接，需要检查是相对还是绝对
-                if stripped_line.startswith('http'):
-                    # 已经是完整URL
-                    result_lines.append(stripped_line)
-                elif stripped_line.startswith('/'):
-                    # 相对于根路径，需要添加原始URL的协议和域名
-                    parsed_url = parse.urlparse(self.original_m3u8_url)
-                    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                    result_lines.append(base_url + stripped_line)
-                else:
-                    # 相对于当前路径，需要添加当前目录路径
-                    current_path = self.original_m3u8_url.rsplit('/', maxsplit=1)[0] + '/'
-                    result_lines.append(current_path + stripped_line)
-            else:
-                # 不是.ts文件链接，直接添加
-                result_lines.append(line)
-        
-        result = '\n'.join(result_lines)
-        self.log(f"原始内容长度: {len(result)}")
-        return result
 
     def localProxy(self, params):
         """
