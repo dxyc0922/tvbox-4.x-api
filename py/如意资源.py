@@ -918,9 +918,9 @@ class Spider(BaseSpider):
         self.log(f"开始根据时长过滤广告，原始URL: {original_url}")
         self.log(f"M3U8行数: {len(lines)}")
         
-        # 提取时长信息
-        durations = []
-        discontinuity_indices = []
+        # 提取时长信息，按#EXT-X-DISCONTINUITY分组
+        all_durations = []  # 存储所有分组
+        current_group = []  # 当前组的时长列表
         
         for i, line in enumerate(lines):
             line = line.strip()
@@ -929,56 +929,71 @@ class Spider(BaseSpider):
                 match = re.search(r'#EXTINF:(\d+\.?\d*)', line)
                 if match:
                     duration = float(match.group(1))
-                    # 记录每个#EXTINF的时长
-                    durations.append(duration)
+                    current_group.append(duration)  # 添加到当前组
+                    self.log(f"在行 {i} 检测到#EXTINF时长: {duration}")
             elif line == '#EXT-X-DISCONTINUITY':
-                discontinuity_indices.append(i)
+                # 遇到不连续标签，将当前组保存，并开始新组
+                if current_group:
+                    all_durations.append(current_group)
+                    self.log(f"第{i}个不连续标签前的片段时长组: {current_group}")
+                    current_group = []
         
-        self.log(f"提取到的时长序列（#EXTINF中的时长）: {durations}")
+        # 处理最后一组（如果没有以不连续标签结尾）
+        if current_group:
+            all_durations.append(current_group)
+            self.log(f"最后一段的时长组: {current_group}")
         
-        # 检查是否匹配预设模式（精确匹配）
+        self.log(f"所有时长分组: {all_durations}")
+        
+        # 检查是否存在与预设匹配的分组
         matched_preset_idx = -1
-        for i, preset in enumerate(presets):
-            self.log(f"检查预设 {i}: {preset}")
-            if len(durations) >= len(preset):
-                # 检查是否与预设完全匹配（精确匹配，无误差）
-                # 预设中的每个值对应单个#EXTINF的时长
-                is_match = True
-                for j, duration in enumerate(preset):
-                    if j < len(durations) and durations[j] != duration:
-                        is_match = False
-                        self.log(f"预设 {i} 在索引 {j} 处不匹配: 实际时长={durations[j]}, 预设时长={duration}")
+        matched_group_idx = -1
+        
+        for group_idx, group_durations in enumerate(all_durations):
+            for preset_idx, preset in enumerate(presets):
+                self.log(f"检查第{group_idx}组时长: {group_durations} 与预设{preset_idx}: {preset}")
+                
+                if len(group_durations) >= len(preset):
+                    # 检查是否与预设完全匹配（精确匹配，无误差）
+                    # 预设中的每个值对应两个#EXT-X-DISCONTINUITY间每个#EXTINF的时长
+                    is_match = True
+                    for j, duration in enumerate(preset):
+                        if j < len(group_durations) and group_durations[j] != duration:
+                            is_match = False
+                            self.log(f"预设 {preset_idx} 在组 {group_idx} 中索引 {j} 处不匹配: 实际时长={group_durations[j]}, 预设时长={duration}")
+                            break
+                    if is_match:
+                        self.log(f"在第{group_idx}组中找到匹配的预设 {preset_idx}: {preset}")
+                        matched_preset_idx = preset_idx
+                        matched_group_idx = group_idx
                         break
-                if is_match:
-                    self.log(f"找到匹配的预设 {i}: {preset}")
-                    matched_preset_idx = i
-                    break
-            else:
-                self.log(f"预设 {i} 长度不匹配: 实际#EXTINF数量={len(durations)}, 需要匹配数量={len(preset)}")
+            if matched_preset_idx != -1:
+                break
         
         # 如果匹配到预设，则移除广告部分
         if matched_preset_idx != -1:
-            self.log(f"使用预设 {matched_preset_idx} 过滤广告")
+            self.log(f"使用预设 {matched_preset_idx} 过滤广告，匹配到第{matched_group_idx}组")
             # 找到匹配的预设，移除对应的广告片段
-            target_ads_count = len(presets[matched_preset_idx])
-            self.log(f"目标广告片段数量: {target_ads_count}")
+            target_ads_count = 1  # 只移除匹配到的那一组
             
             # 构建过滤后的内容
             filtered_lines = []
+            current_group_idx = 0
             skip = False
-            ads_count = 0
             
             for i, line in enumerate(lines):
                 line_stripped = line.strip()
                 
                 if line_stripped == '#EXT-X-DISCONTINUITY':
-                    if ads_count < target_ads_count:
+                    # 遇到不连续标签时，检查当前组是否是需要跳过的广告组
+                    if current_group_idx == matched_group_idx:
                         skip = True
-                        ads_count += 1
-                        self.log(f"跳过广告片段 {ads_count}")
-                    else:
+                    elif current_group_idx == matched_group_idx + 1:
+                        # 下一个组开始时停止跳过
                         skip = False
+                    current_group_idx += 1
                 
+                # 如果当前不在跳过状态，则添加行
                 if not skip:
                     # 处理.ts文件链接
                     if '.ts' in line_stripped and not line_stripped.startswith('#'):
