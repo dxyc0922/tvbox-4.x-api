@@ -934,6 +934,7 @@ class Spider(BaseSpider):
                 # 解析当前URL的协议和域名部分
                 parsed_url = parse.urlparse(url)
                 base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+                new_url = ""
 
                 if next_url.startswith('http'):  # 完整URL
                     new_url = next_url
@@ -943,8 +944,10 @@ class Spider(BaseSpider):
                     current_path = url.rsplit('/', maxsplit=1)[0] + '/'
                     new_url = current_path + next_url
 
-                # 递归处理
-                return self.del_ads(new_url)
+                # 确保new_url已正确赋值后再使用
+                if new_url:
+                    # 递归处理
+                    return self.del_ads(new_url)
         else:
             # 检查#EXT-X-DISCONTINUITY标签的数量
             discontinuity_count = sum(
