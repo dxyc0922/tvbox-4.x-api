@@ -928,14 +928,21 @@ class Spider(BaseSpider):
         lines = response.text.splitlines()
 
         # 检查是否是M3U8格式，并且是否有混合内容
-        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3:
-            next_url = lines[2]
-            if next_url.lower().endswith('.m3u8'):
+        if lines and lines[0] == '#EXTM3U':
+            # 循环查找是否有包含m3u8后缀的行
+            next_url = None
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('#') and line.endswith('.m3u8'):
+                    next_url = line
+                    break
+            
+            if next_url:
                 # 解析当前URL的协议和域名部分
                 parsed_url = parse.urlparse(url)
                 base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                new_url = ""
 
+                # 确定新的URL
                 if next_url.startswith('http'):  # 完整URL
                     new_url = next_url
                 elif next_url.startswith('/'):  # 相对于根路径
@@ -944,10 +951,8 @@ class Spider(BaseSpider):
                     current_path = url.rsplit('/', maxsplit=1)[0] + '/'
                     new_url = current_path + next_url
 
-                # 确保new_url已正确赋值后再使用
-                if new_url:
-                    # 递归处理
-                    return self.del_ads(new_url)
+                # 递归处理
+                return self.del_ads(new_url)
         else:
             # 检查#EXT-X-DISCONTINUITY标签的数量
             discontinuity_count = sum(
