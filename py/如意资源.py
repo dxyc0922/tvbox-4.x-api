@@ -961,9 +961,11 @@ class Spider(BaseSpider):
             self.log(f"#EXT-X-DISCONTINUITY数量: {discontinuity_count}")
 
             if discontinuity_count < 10:
+                self.log("使用模式1处理")
                 # 模式1: 直接使用非凡资源.py的处理方式
                 return self._filter_ads_by_discontinuity_original(lines, url)
             else:
+                self.log("使用模式2处理")
                 # 模式2: 根据预设的连续时长片段判断广告
                 # 预设的时长片段
                 PRESET_1 = [4, 4, 4, 5.32, 3.72]
@@ -988,15 +990,8 @@ class Spider(BaseSpider):
         """
         try:
             url = self.b64decode(params.get('url', ''))
-            self.log(f"本地代理接收到URL: {url}")
             content = self.del_ads(url)
             self.log(f"去广告处理完成，返回内容长度: {len(content) if content else 0}")
-
-            # 添加调试日志，输出M3U8内容的前几行和后几行
-            if content:
-                lines = content.split('\n')
-                # 输出内容
-                self.log(f"{lines}")
 
             return [200, 'application/vnd.apple.mpegurl', content]
         except Exception as e:
