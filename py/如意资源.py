@@ -928,23 +928,23 @@ class Spider(BaseSpider):
         lines = response.text.splitlines()
 
         # 检查是否是M3U8格式，并且是否有混合内容
-        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and next_url.lower().endswith(('.m3u8', '.M3U8')):
-            # 解析当前URL的协议和域名部分
-            parsed_url = parse.urlparse(url)
-            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-
-            # 确定新的URL
+        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3:
             next_url = lines[2]
-            if next_url.startswith('http'):  # 完整URL
-                new_url = next_url
-            elif next_url.startswith('/'):  # 相对于根路径
-                new_url = base_url + next_url
-            else:  # 相对于当前路径
-                current_path = url.rsplit('/', maxsplit=1)[0] + '/'
-                new_url = current_path + next_url
+            if next_url.lower().endswith('.m3u8'):
+                # 解析当前URL的协议和域名部分
+                parsed_url = parse.urlparse(url)
+                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-            # 递归处理
-            return self.del_ads(new_url)
+                if next_url.startswith('http'):  # 完整URL
+                    new_url = next_url
+                elif next_url.startswith('/'):  # 相对于根路径
+                    new_url = base_url + next_url
+                else:  # 相对于当前路径
+                    current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                    new_url = current_path + next_url
+
+                # 递归处理
+                return self.del_ads(new_url)
         else:
             # 检查#EXT-X-DISCONTINUITY标签的数量
             discontinuity_count = sum(
