@@ -835,17 +835,11 @@ class Spider(BaseSpider):
             match = re.search(r'#EXTINF:([\d.]+)', line)
             return float(match.group(1)) if match else 0
 
-        def is_close_duration_list(durations, preset, tolerance=0.1):
+        def is_close_duration_list(durations, preset, tolerance=2):
             """检查时长列表是否接近预设值"""
             if len(durations) != len(preset):
                 return False
-            return all(abs(d - p) <= tolerance for d, p in zip(durations, preset))
-
-        def calculate_similarity(durations, preset):
-            """计算两个时长列表之间的相似度"""
-            if len(durations) != len(preset):
-                return float('inf')  # 如果长度不同，返回无穷大（不相似）
-            return sum(abs(d - p) for d, p in zip(durations, preset))
+            return all(abs(d - p) < tolerance for d, p in zip(durations, preset))
 
         # 构建新的行列表
         result_lines = []
@@ -872,100 +866,43 @@ class Spider(BaseSpider):
         # 分析时长片段
         duration_sequences = []
         current_sequence = []
-        discontinuity_indices = []  # 记录不连续点的索引
 
         for i, line in enumerate(result_lines):
             if line.startswith('#EXTINF:'):
                 duration = extract_duration(line)
                 current_sequence.append(duration)
-            elif line == '#EXT-X-DISCONTINUITY':
-                discontinuity_indices.append(i)  # 记录不连续点索引
-                if current_sequence:
-                    # 记录当前序列及其索引范围
-                    duration_sequences.append({
-                        'durations': current_sequence,
-                        'start_idx': i - len(current_sequence) * 2 - 1,  # 包含#EXT-X-DISCONTINUITY
-                        'end_idx': i - 1,  # 到#EXT-X-DISCONTINUITY前一行
-                        'discontinuity_start': i  # 不连续点索引
-                    })
-                    current_sequence = []
+            elif line == '#EXT-X-DISCONTINUITY' and current_sequence:
+                duration_sequences.append({
+                    'durations': current_sequence,
+                    # 考虑EXTINF和.ts行
+                    'start_idx': i - len(current_sequence) * 2,
+                    'end_idx': i - 1
+                })
+                current_sequence = []
 
         # 在循环结束后检查最后一个序列
         if current_sequence:
             duration_sequences.append({
                 'durations': current_sequence,
                 'start_idx': len(result_lines) - len(current_sequence) * 2,
-                'end_idx': len(result_lines) - 1,
-                'discontinuity_start': -1  # 表示末尾没有DISCONTINUITY
+                'end_idx': len(result_lines) - 1
             })
 
-        # 首先尝试完全匹配预设的广告片段
-        matched_ad_ranges = []
+        # 找到匹配预设的广告片段
+        ad_ranges = []
         for sequence in duration_sequences:
             for preset in presets:
                 if is_close_duration_list(sequence['durations'], preset):
-                    # 找到完全匹配的片段，将这个片段和它前后由#EXT-X-DISCONTINUITY标记包裹的区间当作广告删除
-                    start_idx = sequence['start_idx']
-                    end_idx = sequence['end_idx']
-                    
-                    # 寻找前后的DISCONTINUITY边界
-                    before_discontinuity = -1
-                    after_discontinuity = -1
-                    
-                    for idx in discontinuity_indices:
-                        if idx < start_idx:
-                            before_discontinuity = idx
-                        elif idx > start_idx and after_discontinuity == -1:
-                            after_discontinuity = idx
-                            break
-                    
-                    # 设置广告范围
-                    ad_start = before_discontinuity if before_discontinuity != -1 else start_idx
-                    ad_end = after_discontinuity if after_discontinuity != -1 else end_idx
-                    
-                    matched_ad_ranges.append((ad_start, ad_end))
-                    break  # 找到匹配就跳出
-
-        # 如果没有完全匹配的片段，寻找相似度最高的一个片段
-        if not matched_ad_ranges:
-            best_match = None
-            min_similarity = float('inf')
-            
-            for sequence in duration_sequences:
-                for preset in presets:
-                    similarity = calculate_similarity(sequence['durations'], preset)
-                    if similarity < min_similarity:
-                        min_similarity = similarity
-                        best_match = sequence
-            
-            # 如果找到了最相似的片段，将这个最相似的片段前后由#EXT-X-DISCONTINUITY标记包裹的区间当作广告删除
-            if best_match:
-                start_idx = best_match['start_idx']
-                end_idx = best_match['end_idx']
-                
-                # 寻找前后的DISCONTINUITY边界
-                before_discontinuity = -1
-                after_discontinuity = -1
-                
-                for idx in discontinuity_indices:
-                    if idx < start_idx:
-                        before_discontinuity = idx
-                    elif idx > start_idx and after_discontinuity == -1:
-                        after_discontinuity = idx
-                        break
-                
-                # 设置广告范围
-                ad_start = before_discontinuity if before_discontinuity != -1 else start_idx
-                ad_end = after_discontinuity if after_discontinuity != -1 else end_idx
-                
-                matched_ad_ranges.append((ad_start, ad_end))
+                    ad_ranges.append(
+                        (sequence['start_idx'], sequence['end_idx']))
+                    break
 
         # 过滤广告片段
         final_lines = []
         i = 0
         while i < len(result_lines):
             # 检查当前行是否在广告范围内
-            in_ad_range = any(start <= i <= end for start, end in matched_ad_ranges)
+            in_ad_range = any(start <= i <= end for start, end in ad_ranges)
             if not in_ad_range:
                 final_lines.append(result_lines[i])
             i += 1

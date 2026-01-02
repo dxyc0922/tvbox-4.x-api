@@ -783,7 +783,8 @@ class Spider(BaseSpider):
                     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
                     result_lines.append(base_url + line)
                 else:  # 相对于当前路径
-                    current_path = original_url.rsplit('/', maxsplit=1)[0] + '/'
+                    current_path = original_url.rsplit(
+                        '/', maxsplit=1)[0] + '/'
                     result_lines.append(current_path + line)
             elif line == '#EXT-X-DISCONTINUITY':  # 记录不连续点的索引
                 result_lines.append(line)
@@ -817,24 +818,24 @@ class Spider(BaseSpider):
     def _filter_ads_by_duration(self, url, lines, presets):
         """
         使用时长片段模式过滤广告（模式2）
-        
+
         Args:
             url (str): 原始M3U8 URL
             lines (list): M3U8内容行列表
             presets (list): 预设的时长片段列表
-            
+
         Returns:
             str: 过滤广告后的M3U8内容
         """
         from urllib import parse
         import re
-        
+
         def extract_duration(line):
             """从EXTINF行提取持续时间"""
             match = re.search(r'#EXTINF:([\d.]+)', line)
             return float(match.group(1)) if match else 0
 
-        def is_close_duration_list(durations, preset, tolerance=0.5):
+        def is_close_duration_list(durations, preset, tolerance=2):
             """检查时长列表是否接近预设值"""
             if len(durations) != len(preset):
                 return False
@@ -845,7 +846,7 @@ class Spider(BaseSpider):
         i = 0
         while i < len(lines):
             line = lines[i].strip()
-            
+
             # 处理.ts文件路径
             if '.ts' in line:
                 if line.startswith('http'):
@@ -859,13 +860,13 @@ class Spider(BaseSpider):
                     result_lines.append(current_path + line)
             else:
                 result_lines.append(line)
-                
+
             i += 1
 
         # 分析时长片段
         duration_sequences = []
         current_sequence = []
-        
+
         for i, line in enumerate(result_lines):
             if line.startswith('#EXTINF:'):
                 duration = extract_duration(line)
@@ -873,11 +874,12 @@ class Spider(BaseSpider):
             elif line == '#EXT-X-DISCONTINUITY' and current_sequence:
                 duration_sequences.append({
                     'durations': current_sequence,
-                    'start_idx': i - len(current_sequence) * 2,  # 考虑EXTINF和.ts行
+                    # 考虑EXTINF和.ts行
+                    'start_idx': i - len(current_sequence) * 2,
                     'end_idx': i - 1
                 })
                 current_sequence = []
-                
+
         # 在循环结束后检查最后一个序列
         if current_sequence:
             duration_sequences.append({
@@ -891,7 +893,8 @@ class Spider(BaseSpider):
         for sequence in duration_sequences:
             for preset in presets:
                 if is_close_duration_list(sequence['durations'], preset):
-                    ad_ranges.append((sequence['start_idx'], sequence['end_idx']))
+                    ad_ranges.append(
+                        (sequence['start_idx'], sequence['end_idx']))
                     break
 
         # 过滤广告片段
@@ -926,40 +929,53 @@ class Spider(BaseSpider):
             return ''
 
         lines = response.text.splitlines()
+        self.log(lines)
 
         # 检查是否是M3U8格式，并且是否有混合内容
-        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
-            # 解析当前URL的协议和域名部分
-            parsed_url = parse.urlparse(url)
-            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+        if lines and lines[0] == '#EXTM3U':
+            # 循环查找是否有包含m3u8后缀的行
+            next_url = None
+            for line in lines:
+                line = line.strip()
+                if line and not line.startswith('#') and line.endswith('.m3u8'):
+                    next_url = line
+                    break
 
-            # 确定新的URL
-            next_url = lines[2]
-            if next_url.startswith('http'):  # 完整URL
-                new_url = next_url
-            elif next_url.startswith('/'):  # 相对于根路径
-                new_url = base_url + next_url
-            else:  # 相对于当前路径
-                current_path = url.rsplit('/', maxsplit=1)[0] + '/'
-                new_url = current_path + next_url
+            if next_url:
+                # 解析当前URL的协议和域名部分
+                parsed_url = parse.urlparse(url)
+                base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-            # 递归处理
-            return self.del_ads(new_url)
+                # 确定新的URL
+                if next_url.startswith('http'):  # 完整URL
+                    new_url = next_url
+                elif next_url.startswith('/'):  # 相对于根路径
+                    new_url = base_url + next_url
+                else:  # 相对于当前路径
+                    current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                    new_url = current_path + next_url
+
+                # 递归处理
+                return self.del_ads(new_url)
         else:
             # 检查#EXT-X-DISCONTINUITY标签的数量
             discontinuity_count = sum(
                 1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
+            self.log(f"#EXT-X-DISCONTINUITY数量: {discontinuity_count}")
 
             if discontinuity_count < 10:
+                self.log("使用模式1处理")
                 # 模式1: 直接使用非凡资源.py的处理方式
                 return self._filter_ads_by_discontinuity_original(lines, url)
             else:
+                self.log("使用模式2处理")
                 # 模式2: 根据预设的连续时长片段判断广告
                 # 预设的时长片段
                 PRESET_1 = [4, 4, 4, 5.32, 3.72]
                 PRESET_2 = [4, 4, 4, 5.32, 3.88, 1.72]
-                PRESET_3 = [4, 4, 4, 4, 3.08]
-                PRESETS = [PRESET_1, PRESET_2, PRESET_3]
+                PRESET_3 = [4, 4, 4, 5.32, 3.88, 2.76]
+                PRESET_4 = [4, 4, 4, 4, 3.08]
+                PRESETS = [PRESET_1, PRESET_2, PRESET_3, PRESET_4]
 
                 # 保存原始URL用于后续处理.ts链接
                 self.original_m3u8_url = url
@@ -978,15 +994,8 @@ class Spider(BaseSpider):
         """
         try:
             url = self.b64decode(params.get('url', ''))
-            self.log(f"本地代理接收到URL: {url}")
             content = self.del_ads(url)
             self.log(f"去广告处理完成，返回内容长度: {len(content) if content else 0}")
-
-            # 添加调试日志，输出M3U8内容的前几行和后几行
-            if content:
-                lines = content.split('\n')
-                # 输出内容
-                self.log(f"{lines}")
 
             return [200, 'application/vnd.apple.mpegurl', content]
         except Exception as e:
