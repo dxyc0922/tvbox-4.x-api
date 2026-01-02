@@ -918,109 +918,100 @@ class Spider(BaseSpider):
         self.log(f"开始根据时长过滤广告，原始URL: {original_url}")
         self.log(f"M3U8行数: {len(lines)}")
         
-        # 提取时长信息，按#EXT-X-DISCONTINUITY分组
-        all_durations = []  # 存储所有分组
-        current_group = []  # 当前组的时长列表
-        
-        for i, line in enumerate(lines):
-            line = line.strip()
-            if line.startswith('#EXTINF:'):
-                # 提取时长，格式可能是 #EXTINF:4.000,
-                match = re.search(r'#EXTINF:(\d+\.?\d*)', line)
-                if match:
-                    duration = float(match.group(1))
-                    current_group.append(duration)  # 添加到当前组
-                    self.log(f"在行 {i} 检测到#EXTINF时长: {duration}")
-            elif line == '#EXT-X-DISCONTINUITY':
-                # 遇到不连续标签，将当前组保存，并开始新组
-                if current_group:
-                    all_durations.append(current_group)
-                    self.log(f"第{i}个不连续标签前的片段时长组: {current_group}")
-                    current_group = []
-        
-        # 处理最后一组（如果没有以不连续标签结尾）
-        if current_group:
-            all_durations.append(current_group)
-            self.log(f"最后一段的时长组: {current_group}")
-        
-        self.log(f"所有时长分组: {all_durations}")
-        
-        # 检查是否存在与预设匹配的分组
-        matched_preset_idx = -1
-        matched_group_idx = -1
-        
-        for group_idx, group_durations in enumerate(all_durations):
-            for preset_idx, preset in enumerate(presets):
-                self.log(f"检查第{group_idx}组时长: {group_durations} 与预设{preset_idx}: {preset}")
+        # 顺序遍历M3U8内容，寻找匹配的广告片段
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            if line == '#EXT-X-DISCONTINUITY':
+                self.log(f"在行 {i} 发现不连续标签，开始检查后续#EXTINF时长")
                 
-                if len(group_durations) >= len(preset):
-                    # 检查是否与预设完全匹配（精确匹配，无误差）
-                    # 预设中的每个值对应两个#EXT-X-DISCONTINUITY间每个#EXTINF的时长
-                    is_match = True
-                    for j, duration in enumerate(preset):
-                        if j < len(group_durations) and group_durations[j] != duration:
-                            is_match = False
-                            self.log(f"预设 {preset_idx} 在组 {group_idx} 中索引 {j} 处不匹配: 实际时长={group_durations[j]}, 预设时长={duration}")
+                # 检查从当前位置开始的#EXTINF时长是否与任一预设匹配
+                matched_preset = None
+                matched_end_idx = -1
+                
+                # 对每个预设尝试匹配
+                for preset_idx, preset in enumerate(presets):
+                    self.log(f"尝试匹配预设 {preset_idx}: {preset}")
+                    
+                    # 检查当前不连续标签后是否有足够的行来匹配预设
+                    j = i + 1  # 从不连续标签的下一行开始
+                    match_success = True
+                    preset_match_count = 0  # 匹配的#EXTINF数量
+                    
+                    # 遍历预设中的每个时长，与后续的#EXTINF进行匹配
+                    for preset_duration in preset:
+                        found_extinf = False
+                        
+                        # 在当前不连续标签后的行中寻找#EXTINF
+                        while j < len(lines):
+                            check_line = lines[j].strip()
+                            
+                            if check_line.startswith('#EXTINF:'):
+                                # 提取时长
+                                match = re.search(r'#EXTINF:(\d+\.?\d*)', check_line)
+                                if match:
+                                    duration = float(match.group(1))
+                                    
+                                    # 检查是否与预设时长匹配
+                                    if duration == preset_duration:
+                                        self.log(f"预设 {preset_idx} 中索引 {preset_match_count} 的时长匹配: {duration}")
+                                        preset_match_count += 1
+                                        j += 1
+                                        found_extinf = True
+                                        break
+                                    else:
+                                        self.log(f"预设 {preset_idx} 中索引 {preset_match_count} 的时长不匹配: 实际={duration}, 预设={preset_duration}")
+                                        match_success = False
+                                        break
+                                else:
+                                    j += 1
+                            elif check_line == '#EXT-X-DISCONTINUITY':
+                                # 如果在找到足够的#EXTINF之前遇到了下一个不连续标签，匹配失败
+                                self.log(f"在找到足够的#EXTINF之前遇到了下一个不连续标签")
+                                match_success = False
+                                break
+                            else:
+                                j += 1
+                        
+                        if not match_success:
                             break
-                    if is_match:
-                        self.log(f"在第{group_idx}组中找到匹配的预设 {preset_idx}: {preset}")
-                        matched_preset_idx = preset_idx
-                        matched_group_idx = group_idx
+                    
+                    # 如果整个预设都匹配成功
+                    if match_success and preset_match_count == len(preset):
+                        self.log(f"找到匹配的预设 {preset_idx}: {preset}")
+                        matched_preset = preset
+                        matched_end_idx = j  # 匹配结束的位置
                         break
-            if matched_preset_idx != -1:
-                break
-        
-        # 如果匹配到预设，则移除广告部分
-        if matched_preset_idx != -1:
-            self.log(f"使用预设 {matched_preset_idx} 过滤广告，匹配到第{matched_group_idx}组")
-            # 找到匹配的预设，移除对应的广告片段
-            target_ads_count = 1  # 只移除匹配到的那一组
-            
-            # 构建过滤后的内容
-            filtered_lines = []
-            current_group_idx = 0
-            skip = False
-            
-            for i, line in enumerate(lines):
-                line_stripped = line.strip()
                 
-                if line_stripped == '#EXT-X-DISCONTINUITY':
-                    # 遇到不连续标签时，检查当前组是否是需要跳过的广告组
-                    if current_group_idx == matched_group_idx:
-                        skip = True
-                    elif current_group_idx == matched_group_idx + 1:
-                        # 下一个组开始时停止跳过
-                        skip = False
-                    current_group_idx += 1
-                
-                # 如果当前不在跳过状态，则添加行
-                if not skip:
-                    # 处理.ts文件链接
-                    if '.ts' in line_stripped and not line_stripped.startswith('#'):
-                        if line_stripped.startswith('http'):
-                            # 完整URL
-                            filtered_lines.append(line_stripped)
-                        elif line_stripped.startswith('/'):
-                            # 相对于根路径
-                            parsed_url = parse.urlparse(original_url)
-                            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                            filtered_lines.append(base_url + line_stripped)
-                        else:
-                            # 相对于当前路径
-                            current_path = original_url.rsplit('/', maxsplit=1)[0] + '/'
-                            filtered_lines.append(current_path + line_stripped)
-                    else:
-                        filtered_lines.append(line)
+                # 如果找到匹配的预设，则移除整个广告片段
+                if matched_preset is not None:
+                    self.log(f"使用预设 {preset_idx} 过滤广告，从行 {i} 到行 {matched_end_idx-1}")
+                    
+                    # 构建过滤后的内容
+                    filtered_lines = []
+                    
+                    # 添加匹配片段之前的内容
+                    for k in range(i):
+                        filtered_lines.append(lines[k])
+                    
+                    # 跳过匹配的广告片段，添加剩余内容
+                    for k in range(matched_end_idx, len(lines)):
+                        filtered_lines.append(lines[k])
+                    
+                    result = '\n'.join(filtered_lines)
+                    self.log(f"过滤后内容长度: {len(result)}")
+                    return result
+                else:
+                    # 继续查找下一个不连续标签
+                    pass
+            i += 1
         
-            result = '\n'.join(filtered_lines)
-            self.log(f"过滤后内容长度: {len(result)}")
-            return result
-        else:
-            self.log("没有找到匹配的预设，返回原始内容")
-            # 没有匹配到预设，返回原始内容
-            result = '\n'.join(lines)
-            self.log(f"原始内容长度: {len(result)}")
-            return result
+        self.log("没有找到匹配的预设，返回原始内容")
+        # 没有匹配到预设，返回原始内容
+        result = '\n'.join(lines)
+        self.log(f"原始内容长度: {len(result)}")
+        return result
 
     def localProxy(self, params):
         """
