@@ -850,26 +850,13 @@ class Spider(BaseSpider):
         """
         self.log(f"开始根据不连续点过滤广告，总行数: {len(lines)}")
 
-        result_lines = []
+        # 直接使用原始行，不进行额外处理
         discontinuity_indices = []
 
         for i, line in enumerate(lines):
             line_stripped = line.strip()
-            if '.ts' in line_stripped and line_stripped.startswith('http'):
-                # 已经是完整URL
-                result_lines.append(line_stripped)
-            elif '.ts' in line_stripped and line_stripped.startswith('/'):
-                # 相对于根路径
-                result_lines.append(line_stripped)
-            elif '.ts' in line_stripped and not line_stripped.startswith('#'):
-                # 相对于当前路径，需要处理
-                result_lines.append(line_stripped)
-            elif line_stripped == '#EXT-X-DISCONTINUITY':
-                result_lines.append(line_stripped)
-                discontinuity_indices.append(
-                    len(result_lines) - 1)  # 记录在结果中的位置
-            else:
-                result_lines.append(line)
+            if line_stripped == '#EXT-X-DISCONTINUITY':
+                discontinuity_indices.append(i)  # 记录原始行中的位置
 
         self.log(f"发现不连续点索引: {discontinuity_indices}")
 
@@ -892,7 +879,7 @@ class Spider(BaseSpider):
 
         # 过滤掉指定范围内的内容
         filtered_lines = []
-        for i, line in enumerate(result_lines):
+        for i, line in enumerate(lines):
             # 检查当前索引是否在任何过滤范围内
             is_filtered = any(
                 start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
