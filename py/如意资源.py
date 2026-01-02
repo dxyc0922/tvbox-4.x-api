@@ -924,7 +924,6 @@ class Spider(BaseSpider):
             line = lines[i].strip()
             
             if line == '#EXT-X-DISCONTINUITY':
-                self.log(f"在行 {i} 发现不连续标签，开始检查后续#EXTINF时长")
                 
                 # 检查从当前位置开始的#EXTINF时长是否与任一预设匹配
                 matched_preset = None
@@ -932,7 +931,6 @@ class Spider(BaseSpider):
                 
                 # 对每个预设尝试匹配
                 for preset_idx, preset in enumerate(presets):
-                    self.log(f"尝试匹配预设 {preset_idx}: {preset}")
                     
                     # 检查当前不连续标签后是否有足够的行来匹配预设
                     j = i + 1  # 从不连续标签的下一行开始
@@ -955,13 +953,11 @@ class Spider(BaseSpider):
                                     
                                     # 检查是否与预设时长匹配
                                     if duration == preset_duration:
-                                        self.log(f"预设 {preset_idx} 中索引 {preset_match_count} 的时长匹配: {duration}")
                                         preset_match_count += 1
                                         j += 1
                                         found_extinf = True
                                         break
                                     else:
-                                        self.log(f"预设 {preset_idx} 中索引 {preset_match_count} 的时长不匹配: 实际={duration}, 预设={preset_duration}")
                                         match_success = False
                                         break
                                 else:
