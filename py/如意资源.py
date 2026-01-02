@@ -926,7 +926,7 @@ class Spider(BaseSpider):
             return ''
 
         lines = response.text.splitlines()
-        self.log(lines.split('\n'))
+        self.log(lines)
 
         # 检查是否是M3U8格式，并且是否有混合内容
         if lines and lines[0] == '#EXTM3U':
