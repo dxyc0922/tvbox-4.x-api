@@ -921,7 +921,6 @@ class Spider(BaseSpider):
         # 提取时长信息
         durations = []
         discontinuity_indices = []
-        current_duration = 0
         
         for i, line in enumerate(lines):
             line = line.strip()
@@ -930,19 +929,12 @@ class Spider(BaseSpider):
                 match = re.search(r'#EXTINF:(\d+\.?\d*)', line)
                 if match:
                     duration = float(match.group(1))
-                    current_duration += duration
+                    # 记录每个#EXTINF的时长
+                    durations.append(duration)
             elif line == '#EXT-X-DISCONTINUITY':
-                durations.append(current_duration)
                 discontinuity_indices.append(i)
-                self.log(f"在索引 {i} 处发现不连续标签，累积时长: {current_duration}")
-                current_duration = 0
         
-        # 添加最后一段的时长
-        if current_duration > 0:
-            durations.append(current_duration)
-            self.log(f"添加最后一段时长: {current_duration}")
-        
-        self.log(f"提取到的时长序列: {durations}")
+        self.log(f"提取到的时长序列（#EXTINF中的时长）: {durations}")
         
         # 检查是否匹配预设模式（精确匹配）
         matched_preset_idx = -1
@@ -950,18 +942,19 @@ class Spider(BaseSpider):
             self.log(f"检查预设 {i}: {preset}")
             if len(durations) >= len(preset):
                 # 检查是否与预设完全匹配（精确匹配，无误差）
+                # 预设中的每个值对应单个#EXTINF的时长
                 is_match = True
                 for j, duration in enumerate(preset):
                     if j < len(durations) and durations[j] != duration:
                         is_match = False
-                        self.log(f"预设 {i} 在索引 {j} 处不匹配: {durations[j]} != {duration}")
+                        self.log(f"预设 {i} 在索引 {j} 处不匹配: 实际时长={durations[j]}, 预设时长={duration}")
                         break
                 if is_match:
-                    self.log(f"找到匹配的预设 {i}")
+                    self.log(f"找到匹配的预设 {i}: {preset}")
                     matched_preset_idx = i
                     break
             else:
-                self.log(f"预设 {i} 长度不匹配: {len(durations)} < {len(preset)}")
+                self.log(f"预设 {i} 长度不匹配: 实际#EXTINF数量={len(durations)}, 需要匹配数量={len(preset)}")
         
         # 如果匹配到预设，则移除广告部分
         if matched_preset_idx != -1:
