@@ -952,8 +952,10 @@ class Spider(BaseSpider):
 
             if discontinuity_count < 10:
                 # 模式1: 直接使用非凡资源.py的处理方式
+                self.log(f"使用模式1处理: {url}")
                 return self._filter_ads_by_discontinuity_original(lines, url)
             else:
+                self.log(f"使用模式2处理: {url}")
                 # 模式2: 根据预设的连续时长片段判断广告
                 # 预设的时长片段
                 PRESET_1 = [4, 4, 4, 5.32, 3.72]
