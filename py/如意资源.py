@@ -691,7 +691,7 @@ class Spider(BaseSpider):
             dict: 包含播放地址和相关参数的字典
         """
         proxy_url = self.getProxyUrl() + f"&url={self.b64encode(id)}"
-        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 1}
+        return {'url': proxy_url, 'header': self.DEFAULT_HEADERS, 'parse': 0, 'jx': 0}
 
     def destroy(self):
         """
