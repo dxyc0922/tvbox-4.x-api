@@ -371,7 +371,7 @@ class Spider(BaseSpider):
                         # 优先使用API数据，因为数量可能更多
                         if len(api_videos) > len(videos):
                             return {"list": api_videos}
-                
+
                 return {"list": videos}
 
             # 如果AJAX接口没有返回数据，再尝试使用API接口
@@ -766,10 +766,10 @@ class Spider(BaseSpider):
             str: 过滤广告后的播放内容
         """
         from urllib import parse
-        
+
         # 添加调试日志
         self.log(f"开始处理去广告，URL: {url}")
-        
+
         # 预设的时长片段
         PRESET_1 = [4, 4, 4, 5.32, 3.72]
         PRESET_2 = [4, 4, 4, 5.32, 3.88, 1.72]
@@ -783,11 +783,11 @@ class Spider(BaseSpider):
             if response.status_code != 200:
                 self.log(f"M3U8请求失败，状态码: {response.status_code}")
                 return ''
-            
+
             content = response.text
             self.log(f"获取到M3U8内容长度: {len(content)}")
             lines = content.splitlines()
-            
+
             # 检查是否是多层M3U8（即内容中包含另一个M3U8链接）
             if lines and lines[0] == '#EXTM3U':
                 for line in lines:
@@ -806,11 +806,11 @@ class Spider(BaseSpider):
                             # 相对于当前路径
                             current_path = url.rsplit('/', maxsplit=1)[0] + '/'
                             next_url = current_path + line
-                        
+
                         self.log(f"检测到多层M3U8，递归解析: {next_url}")
                         # 递归解析下一层
                         return resolve_m3u8(next_url)
-            
+
             return content
 
         # 获取M3U8内容
@@ -825,7 +825,8 @@ class Spider(BaseSpider):
             return content
 
         # 检查#EXT-X-DISCONTINUITY标签的数量
-        discontinuity_count = sum(1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
+        discontinuity_count = sum(
+            1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
         self.log(f"检测到不连续标签数量: {discontinuity_count}")
 
         if discontinuity_count < 10:
@@ -840,15 +841,15 @@ class Spider(BaseSpider):
     def _filter_ads_by_discontinuity(self, lines):
         """
         根据不连续点过滤广告
-        
+
         Args:
             lines (list): M3U8内容的行列表
-            
+
         Returns:
             str: 过滤后的内容
         """
         self.log(f"开始根据不连续点过滤广告，总行数: {len(lines)}")
-        
+
         result_lines = []
         discontinuity_indices = []
 
@@ -865,22 +866,26 @@ class Spider(BaseSpider):
                 result_lines.append(line_stripped)
             elif line_stripped == '#EXT-X-DISCONTINUITY':
                 result_lines.append(line_stripped)
-                discontinuity_indices.append(len(result_lines) - 1)  # 记录在结果中的位置
+                discontinuity_indices.append(
+                    len(result_lines) - 1)  # 记录在结果中的位置
             else:
                 result_lines.append(line)
 
         self.log(f"发现不连续点索引: {discontinuity_indices}")
-        
+
         # 根据不连续点的索引确定需要过滤的范围
         filter_ranges = []
         if len(discontinuity_indices) >= 1:
-            filter_ranges.append((discontinuity_indices[0], discontinuity_indices[0]))
+            filter_ranges.append(
+                (discontinuity_indices[0], discontinuity_indices[0]))
             self.log(f"添加过滤范围1: {filter_ranges[-1]}")
         if len(discontinuity_indices) >= 3:
-            filter_ranges.append((discontinuity_indices[1], discontinuity_indices[2]))
+            filter_ranges.append(
+                (discontinuity_indices[1], discontinuity_indices[2]))
             self.log(f"添加过滤范围2: {filter_ranges[-1]}")
         if len(discontinuity_indices) >= 5:
-            filter_ranges.append((discontinuity_indices[3], discontinuity_indices[4]))
+            filter_ranges.append(
+                (discontinuity_indices[3], discontinuity_indices[4]))
             self.log(f"添加过滤范围3: {filter_ranges[-1]}")
 
         self.log(f"总共定义的过滤范围: {filter_ranges}")
@@ -903,61 +908,68 @@ class Spider(BaseSpider):
     def _filter_ads_by_duration(self, original_url, lines, presets):
         """
         根据预设的连续时长片段判断广告
-        
+
         Args:
             original_url (str): 原始URL
             lines (list): M3U8内容的行列表
             presets (list): 预设时长列表
-            
+
         Returns:
             str: 过滤后的内容
         """
         import re
         from urllib import parse
-        
+
         self.log(f"开始根据时长过滤广告，原始URL: {original_url}")
         self.log(f"M3U8行数: {len(lines)}")
-        
+
         # 顺序遍历M3U8内容，寻找匹配的广告片段
         i = 0
         while i < len(lines):
             line = lines[i].strip()
-            
+
             if line == '#EXT-X-DISCONTINUITY':
-                
+                self.log(f"在行 {i} 发现不连续标签，开始检查后续#EXTINF时长")
+
                 # 检查从当前位置开始的#EXTINF时长是否与任一预设匹配
                 matched_preset = None
                 matched_end_idx = -1
-                
+
                 # 对每个预设尝试匹配
                 for preset_idx, preset in enumerate(presets):
-                    
+                    self.log(f"尝试匹配预设 {preset_idx}: {preset}")
+
                     # 检查当前不连续标签后是否有足够的行来匹配预设
                     j = i + 1  # 从不连续标签的下一行开始
                     match_success = True
                     preset_match_count = 0  # 匹配的#EXTINF数量
-                    
+
                     # 遍历预设中的每个时长，与后续的#EXTINF进行匹配
                     for preset_duration in preset:
                         found_extinf = False
-                        
+
                         # 在当前不连续标签后的行中寻找#EXTINF
                         while j < len(lines):
                             check_line = lines[j].strip()
-                            
+
                             if check_line.startswith('#EXTINF:'):
                                 # 提取时长
-                                match = re.search(r'#EXTINF:(\d+\.?\d*)', check_line)
+                                match = re.search(
+                                    r'#EXTINF:(\d+\.?\d*)', check_line)
                                 if match:
                                     duration = float(match.group(1))
-                                    
+
                                     # 检查是否与预设时长匹配
                                     if duration == preset_duration:
+                                        self.log(
+                                            f"预设 {preset_idx} 中索引 {preset_match_count} 的时长匹配: {duration}")
                                         preset_match_count += 1
                                         j += 1
                                         found_extinf = True
                                         break
                                     else:
+                                        self.log(
+                                            f"预设 {preset_idx} 中索引 {preset_match_count} 的时长不匹配: 实际={duration}, 预设={preset_duration}")
                                         match_success = False
                                         break
                                 else:
@@ -969,32 +981,33 @@ class Spider(BaseSpider):
                                 break
                             else:
                                 j += 1
-                        
+
                         if not match_success:
                             break
-                    
+
                     # 如果整个预设都匹配成功
                     if match_success and preset_match_count == len(preset):
                         self.log(f"找到匹配的预设 {preset_idx}: {preset}")
                         matched_preset = preset
                         matched_end_idx = j  # 匹配结束的位置
                         break
-                
+
                 # 如果找到匹配的预设，则移除整个广告片段
                 if matched_preset is not None:
-                    self.log(f"使用预设 {preset_idx} 过滤广告，从行 {i} 到行 {matched_end_idx-1}")
-                    
+                    self.log(
+                        f"使用预设 {preset_idx} 过滤广告，从行 {i} 到行 {matched_end_idx-1}")
+
                     # 构建过滤后的内容
                     filtered_lines = []
-                    
+
                     # 添加匹配片段之前的内容
                     for k in range(i):
                         filtered_lines.append(lines[k])
-                    
+
                     # 跳过匹配的广告片段，添加剩余内容
                     for k in range(matched_end_idx, len(lines)):
                         filtered_lines.append(lines[k])
-                    
+
                     result = '\n'.join(filtered_lines)
                     self.log(f"过滤后内容长度: {len(result)}")
                     return result
@@ -1002,7 +1015,7 @@ class Spider(BaseSpider):
                     # 继续查找下一个不连续标签
                     pass
             i += 1
-        
+
         self.log("没有找到匹配的预设，返回原始内容")
         # 没有匹配到预设，返回原始内容
         result = '\n'.join(lines)
@@ -1019,6 +1032,23 @@ class Spider(BaseSpider):
         Returns:
             list: 代理响应结果
         """
-        url = self.b64decode(params.get('url', ''))
-        content = self.del_ads(url)
-        return [200, 'application/vnd.apple.mpegurl', content]
+        try:
+            url = self.b64decode(params.get('url', ''))
+            self.log(f"本地代理接收到URL: {url}")
+            content = self.del_ads(url)
+            self.log(f"去广告处理完成，返回内容长度: {len(content) if content else 0}")
+            return [200, 'application/vnd.apple.mpegurl', content]
+        except Exception as e:
+            self.log(f"本地代理处理出错: {str(e)}")
+            # 如果去广告处理出错，尝试直接获取原始内容
+            try:
+                response = self.fetch(url, headers=self.DEFAULT_HEADERS)
+                if response.status_code == 200:
+                    self.log("返回原始M3U8内容")
+                    return [200, 'application/vnd.apple.mpegurl', response.text]
+                else:
+                    self.log(f"获取原始内容失败，状态码: {response.status_code}")
+                    return [500, 'text/plain', 'Failed to fetch content']
+            except Exception as fetch_error:
+                self.log(f"获取原始内容也出错: {str(fetch_error)}")
+                return [500, 'text/plain', 'Failed to fetch content']
