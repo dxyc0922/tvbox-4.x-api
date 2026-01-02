@@ -766,11 +766,12 @@ class Spider(BaseSpider):
         Returns:
             str: 过滤后的内容
         """
+        import requests
+        from urllib import parse
+
         # 处理M3U8内容，过滤广告
         result_lines = []
         discontinuity_indices = []
-
-        from urllib import parse
 
         for i, line in enumerate(lines):
             if '.ts' in line:
@@ -915,81 +916,55 @@ class Spider(BaseSpider):
         Returns:
             str: 过滤广告后的播放内容
         """
+        import requests
         from urllib import parse
 
-        # 保存原始URL用于后续处理.ts链接
-        self.original_m3u8_url = url
+        headers = self.DEFAULT_HEADERS
+        response = requests.get(url=url, headers=headers)
 
-        # 添加调试日志
-        self.log(f"开始处理去广告，URL: {url}")
-
-        # 预设的时长片段
-        PRESET_1 = [4, 4, 4, 5.32, 3.72]
-        PRESET_2 = [4, 4, 4, 5.32, 3.88, 1.72]
-        PRESET_3 = [4, 4, 4, 4, 3.08]
-        PRESETS = [PRESET_1, PRESET_2, PRESET_3]
-
-        # 处理多层M3U8解析
-        def resolve_m3u8(url):
-            self.log(f"解析M3U8，URL: {url}")
-            response = self.fetch(url, headers=self.DEFAULT_HEADERS)
-            if response.status_code != 200:
-                self.log(f"M3U8请求失败，状态码: {response.status_code}")
-                return ''
-
-            content = response.text
-            self.log(f"获取到M3U8内容长度: {len(content)}")
-            lines = content.splitlines()
-
-            # 检查是否是多层M3U8（即内容中包含另一个M3U8链接）
-            if lines and lines[0] == '#EXTM3U':
-                for line in lines:
-                    line = line.strip()
-                    if line and not line.startswith('#') and ('.m3u' in line or '.m3u8' in line):
-                        # 解析相对URL或绝对URL
-                        if line.startswith('http'):
-                            # 完整URL
-                            next_url = line
-                        elif line.startswith('/'):
-                            # 相对于根路径
-                            parsed_url = parse.urlparse(url)
-                            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                            next_url = base_url + line
-                        else:
-                            # 相对于当前路径
-                            current_path = url.rsplit('/', maxsplit=1)[0] + '/'
-                            next_url = current_path + line
-
-                        self.log(f"检测到多层M3U8，递归解析: {next_url}")
-                        # 递归解析下一层
-                        return resolve_m3u8(next_url)
-
-            return content
-
-        # 获取M3U8内容
-        content = resolve_m3u8(url)
-        if not content:
-            self.log("无法获取M3U8内容")
+        if response.status_code != 200:
             return ''
 
-        lines = content.splitlines()
-        if not lines:
-            self.log("M3U8内容为空")
-            return content
+        lines = response.text.splitlines()
 
-        # 检查#EXT-X-DISCONTINUITY标签的数量
-        discontinuity_count = sum(
-            1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
-        self.log(f"检测到不连续标签数量: {discontinuity_count}")
+        # 检查是否是M3U8格式，并且是否有混合内容
+        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
+            # 解析当前URL的协议和域名部分
+            parsed_url = parse.urlparse(url)
+            base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-        if discontinuity_count < 10:
-            self.log("使用模式1: 根据不连续点过滤广告")
-            # 模式1: 直接使用非凡资源.py的处理方式，保证与非凡资源.py一致
-            return self._filter_ads_by_discontinuity_original(lines, url)
+            # 确定新的URL
+            next_url = lines[2]
+            if next_url.startswith('http'):  # 完整URL
+                new_url = next_url
+            elif next_url.startswith('/'):  # 相对于根路径
+                new_url = base_url + next_url
+            else:  # 相对于当前路径
+                current_path = url.rsplit('/', maxsplit=1)[0] + '/'
+                new_url = current_path + next_url
+
+            # 递归处理
+            return self.del_ads(new_url)
         else:
-            self.log("使用模式2: 根据预设的连续时长片段判断广告")
-            # 模式2: 根据预设的连续时长片段判断广告
-            return self._filter_ads_by_duration(url, lines, PRESETS)
+            # 检查#EXT-X-DISCONTINUITY标签的数量
+            discontinuity_count = sum(
+                1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
+
+            if discontinuity_count < 10:
+                # 模式1: 直接使用非凡资源.py的处理方式
+                return self._filter_ads_by_discontinuity_original(lines, url)
+            else:
+                # 模式2: 根据预设的连续时长片段判断广告
+                # 预设的时长片段
+                PRESET_1 = [4, 4, 4, 5.32, 3.72]
+                PRESET_2 = [4, 4, 4, 5.32, 3.88, 1.72]
+                PRESET_3 = [4, 4, 4, 4, 3.08]
+                PRESETS = [PRESET_1, PRESET_2, PRESET_3]
+
+                # 保存原始URL用于后续处理.ts链接
+                self.original_m3u8_url = url
+
+                return self._filter_ads_by_duration(url, lines, PRESETS)
 
     def localProxy(self, params):
         """
