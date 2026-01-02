@@ -847,6 +847,8 @@ class Spider(BaseSpider):
         Returns:
             str: 过滤后的内容
         """
+        self.log(f"开始根据不连续点过滤广告，总行数: {len(lines)}")
+        
         result_lines = []
         discontinuity_indices = []
 
@@ -867,14 +869,21 @@ class Spider(BaseSpider):
             else:
                 result_lines.append(line)
 
+        self.log(f"发现不连续点索引: {discontinuity_indices}")
+        
         # 根据不连续点的索引确定需要过滤的范围
         filter_ranges = []
         if len(discontinuity_indices) >= 1:
             filter_ranges.append((discontinuity_indices[0], discontinuity_indices[0]))
+            self.log(f"添加过滤范围1: {filter_ranges[-1]}")
         if len(discontinuity_indices) >= 3:
             filter_ranges.append((discontinuity_indices[1], discontinuity_indices[2]))
+            self.log(f"添加过滤范围2: {filter_ranges[-1]}")
         if len(discontinuity_indices) >= 5:
             filter_ranges.append((discontinuity_indices[3], discontinuity_indices[4]))
+            self.log(f"添加过滤范围3: {filter_ranges[-1]}")
+
+        self.log(f"总共定义的过滤范围: {filter_ranges}")
 
         # 过滤掉指定范围内的内容
         filtered_lines = []
@@ -884,8 +893,12 @@ class Spider(BaseSpider):
                 start_idx <= i <= end_idx for start_idx, end_idx in filter_ranges)
             if not is_filtered:
                 filtered_lines.append(line)
+            else:
+                self.log(f"过滤掉索引 {i} 处的行: {line}")
 
-        return '\n'.join(filtered_lines)
+        result = '\n'.join(filtered_lines)
+        self.log(f"过滤后内容长度: {len(result)}")
+        return result
 
     def _filter_ads_by_duration(self, original_url, lines, presets):
         """
@@ -901,6 +914,9 @@ class Spider(BaseSpider):
         """
         import re
         from urllib import parse
+        
+        self.log(f"开始根据时长过滤广告，原始URL: {original_url}")
+        self.log(f"M3U8行数: {len(lines)}")
         
         # 提取时长信息
         durations = []
@@ -918,30 +934,41 @@ class Spider(BaseSpider):
             elif line == '#EXT-X-DISCONTINUITY':
                 durations.append(current_duration)
                 discontinuity_indices.append(i)
+                self.log(f"在索引 {i} 处发现不连续标签，累积时长: {current_duration}")
                 current_duration = 0
         
         # 添加最后一段的时长
         if current_duration > 0:
             durations.append(current_duration)
+            self.log(f"添加最后一段时长: {current_duration}")
+        
+        self.log(f"提取到的时长序列: {durations}")
         
         # 检查是否匹配预设模式（精确匹配）
         matched_preset_idx = -1
         for i, preset in enumerate(presets):
+            self.log(f"检查预设 {i}: {preset}")
             if len(durations) >= len(preset):
                 # 检查是否与预设完全匹配（精确匹配，无误差）
                 is_match = True
                 for j, duration in enumerate(preset):
                     if j < len(durations) and durations[j] != duration:
                         is_match = False
+                        self.log(f"预设 {i} 在索引 {j} 处不匹配: {durations[j]} != {duration}")
                         break
                 if is_match:
+                    self.log(f"找到匹配的预设 {i}")
                     matched_preset_idx = i
                     break
+            else:
+                self.log(f"预设 {i} 长度不匹配: {len(durations)} < {len(preset)}")
         
         # 如果匹配到预设，则移除广告部分
         if matched_preset_idx != -1:
+            self.log(f"使用预设 {matched_preset_idx} 过滤广告")
             # 找到匹配的预设，移除对应的广告片段
             target_ads_count = len(presets[matched_preset_idx])
+            self.log(f"目标广告片段数量: {target_ads_count}")
             
             # 构建过滤后的内容
             filtered_lines = []
@@ -955,6 +982,7 @@ class Spider(BaseSpider):
                     if ads_count < target_ads_count:
                         skip = True
                         ads_count += 1
+                        self.log(f"跳过广告片段 {ads_count}")
                     else:
                         skip = False
                 
@@ -976,10 +1004,15 @@ class Spider(BaseSpider):
                     else:
                         filtered_lines.append(line)
         
-            return '\n'.join(filtered_lines)
+            result = '\n'.join(filtered_lines)
+            self.log(f"过滤后内容长度: {len(result)}")
+            return result
         else:
+            self.log("没有找到匹配的预设，返回原始内容")
             # 没有匹配到预设，返回原始内容
-            return '\n'.join(lines)
+            result = '\n'.join(lines)
+            self.log(f"原始内容长度: {len(result)}")
+            return result
 
     def localProxy(self, params):
         """
