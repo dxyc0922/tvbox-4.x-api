@@ -958,6 +958,7 @@ class Spider(BaseSpider):
             # 检查#EXT-X-DISCONTINUITY标签的数量
             discontinuity_count = sum(
                 1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
+            self.log(f"#EXT-X-DISCONTINUITY数量: {discontinuity_count}")
 
             if discontinuity_count < 10:
                 # 模式1: 直接使用非凡资源.py的处理方式
