@@ -767,6 +767,9 @@ class Spider(BaseSpider):
         """
         from urllib import parse
         
+        # 添加调试日志
+        self.log(f"开始处理去广告，URL: {url}")
+        
         # 预设的时长片段
         PRESET_1 = [4, 4, 4, 5.32, 3.72]
         PRESET_2 = [4, 4, 4, 5.32, 3.88, 1.72]
@@ -775,11 +778,14 @@ class Spider(BaseSpider):
 
         # 处理多层M3U8解析
         def resolve_m3u8(url):
+            self.log(f"解析M3U8，URL: {url}")
             response = self.fetch(url, headers=self.DEFAULT_HEADERS)
             if response.status_code != 200:
+                self.log(f"M3U8请求失败，状态码: {response.status_code}")
                 return ''
             
             content = response.text
+            self.log(f"获取到M3U8内容长度: {len(content)}")
             lines = content.splitlines()
             
             # 检查是否是多层M3U8（即内容中包含另一个M3U8链接）
@@ -801,6 +807,7 @@ class Spider(BaseSpider):
                             current_path = url.rsplit('/', maxsplit=1)[0] + '/'
                             next_url = current_path + line
                         
+                        self.log(f"检测到多层M3U8，递归解析: {next_url}")
                         # 递归解析下一层
                         return resolve_m3u8(next_url)
             
@@ -809,19 +816,24 @@ class Spider(BaseSpider):
         # 获取M3U8内容
         content = resolve_m3u8(url)
         if not content:
+            self.log("无法获取M3U8内容")
             return ''
 
         lines = content.splitlines()
         if not lines:
+            self.log("M3U8内容为空")
             return content
 
         # 检查#EXT-X-DISCONTINUITY标签的数量
         discontinuity_count = sum(1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
+        self.log(f"检测到不连续标签数量: {discontinuity_count}")
 
         if discontinuity_count < 10:
+            self.log("使用模式1: 根据不连续点过滤广告")
             # 模式1: 根据不连续点过滤广告
             return self._filter_ads_by_discontinuity(lines)
         else:
+            self.log("使用模式2: 根据预设的连续时长片段判断广告")
             # 模式2: 根据预设的连续时长片段判断广告
             return self._filter_ads_by_duration(url, lines, PRESETS)
 
