@@ -835,7 +835,7 @@ class Spider(BaseSpider):
             match = re.search(r'#EXTINF:([\d.]+)', line)
             return float(match.group(1)) if match else 0
 
-        def is_close_duration_list(durations, preset, tolerance=2):
+        def is_close_duration_list(durations, preset, tolerance=0):
             """检查时长列表是否接近预设值"""
             if len(durations) != len(preset):
                 return False
