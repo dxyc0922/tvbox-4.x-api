@@ -928,7 +928,7 @@ class Spider(BaseSpider):
         lines = response.text.splitlines()
 
         # 检查是否是M3U8格式，并且是否有混合内容
-        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and 'mixed.m3u8' in lines[2]:
+        if lines and lines[0] == '#EXTM3U' and len(lines) >= 3 and next_url.lower().endswith(('.m3u8', '.M3U8')):
             # 解析当前URL的协议和域名部分
             parsed_url = parse.urlparse(url)
             base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -947,16 +947,13 @@ class Spider(BaseSpider):
             return self.del_ads(new_url)
         else:
             # 检查#EXT-X-DISCONTINUITY标签的数量
-            discontinuity_count = sum(1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
-            self.log(f"当前M3U8文件内容: {lines}")
-            self.log(f"#EXT-X-DISCONTINUITY数量: {discontinuity_count}")
+            discontinuity_count = sum(
+                1 for line in lines if line.strip() == '#EXT-X-DISCONTINUITY')
 
             if discontinuity_count < 10:
                 # 模式1: 直接使用非凡资源.py的处理方式
-                self.log(f"使用模式1处理: {url}")
                 return self._filter_ads_by_discontinuity_original(lines, url)
             else:
-                self.log(f"使用模式2处理: {url}")
                 # 模式2: 根据预设的连续时长片段判断广告
                 # 预设的时长片段
                 PRESET_1 = [4, 4, 4, 5.32, 3.72]
