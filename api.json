@@ -92,11 +92,11 @@
       "ext": {
         "flag": [
           "feifan",
-          "ffzym3u8"
+          "ffm3u8"
         ]
       },
       "regex": [
-        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,12}\\n#EXT-X-DISCONTINUITY"
+        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,25}\\n#EXT-X-DISCONTINUITY"
       ]
     },
     {
@@ -124,8 +124,7 @@
       "url": "Web"
     }
   ],
-  "rules": [
-  ],
+  "rules": [],
   "ijk": [
     {
       "group": "软解码",
