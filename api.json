@@ -91,27 +91,9 @@
       "parse": 1,
       "ext": {
         "flag": [
-          "feifan",
-          "ffm3u8"
+          "feifan"
         ]
-      },
-      "regex": [
-        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,25}\\n#EXT-X-DISCONTINUITY"
-      ]
-    },
-    {
-      "name": "暴风解析",
-      "type": 1,
-      "url": "https://vip.vipuuvip.com/?url=",
-      "parse": 1,
-      "ext": {
-        "flag": [
-          "bfzym3u8"
-        ]
-      },
-      "regex": [
-        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,25}\\n#EXT-X-DISCONTINUITY"
-      ]
+      }
     },
     {
       "name": "解析聚合",
@@ -124,7 +106,26 @@
       "url": "Web"
     }
   ],
-  "rules": [],
+  "rules": [
+    {
+      "name": "非凡广告",
+      "hosts": [
+        "*ffzy*"
+      ],
+      "regex": [
+        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){1,25}\\n#EXT-X-DISCONTINUITY"
+      ]
+    },
+    {
+      "name": "暴风广告",
+      "hosts": [
+        "*fengbao*"
+      ],
+      "regex": [
+        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){1,25}\\n#EXT-X-DISCONTINUITY"
+      ]
+    }
+  ],
   "ijk": [
     {
       "group": "软解码",
@@ -222,7 +223,8 @@
       ]
     }
   ],
-  "ads": [],
+  "ads": [
+  ],
   "doh": [
     {
       "name": "Google",
