@@ -1,34 +1,191 @@
 {
-    "sites": [
+  "sites": [
+    {
+      "key": "ffzy",
+      "name": "非凡资源",
+      "api": "http://ffzy.tv/api.php/provide/vod/",
+      "playUrl": "https://play.ffzy.tv/player/ec.php?code=ffzy&if=1&url=",
+      "searchable": 1,
+      "quickSearch": 1,
+      "filterable": 1,
+      "type": 1,
+      "categories": [
+        "动作片",
+        "喜剧片",
+        "爱情片",
+        "科幻片",
+        "恐怖片",
+        "剧情片",
+        "战争片",
+        "记录片",
+        "国产剧",
+        "香港剧",
+        "韩国剧",
+        "欧美剧",
+        "台湾剧",
+        "日本剧",
+        "海外剧",
+        "泰国剧",
+        "短剧",
+        "大陆综艺",
+        "港台综艺",
+        "日韩综艺",
+        "欧美综艺",
+        "国产动漫",
+        "日韩动漫",
+        "欧美动漫",
+        "港台动漫",
+        "海外动漫"
+      ]
+    }
+  ],
+  "parses": [
+    {
+      "name": "解析聚合",
+      "type": 3,
+      "url": "Demo"
+    },
+    {
+      "name": "Web聚合",
+      "type": 3,
+      "url": "Web"
+    }
+  ],
+  "rules": [
+    {
+      "name": "非凡广告",
+      "hosts": ["*.ffzy*"],
+      "regex": ["#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,12}\\n#EXT-X-DISCONTINUITY"]
+    }
+  ],
+  "ijk": [
+    {
+      "group": "软解码",
+      "options": [
         {
-            "key": "非凡资源",
-            "name": "非凡资源",
-            "type": 3,
-            "api": "./py/非凡资源.py"
+          "category": 4,
+          "name": "opensles",
+          "value": "0"
         },
         {
-            "key": "暴风资源",
-            "name": "暴风资源",
-            "type": 3,
-            "api": "./py/暴风资源.py"
+          "category": 4,
+          "name": "overlay-format",
+          "value": "842225234"
         },
         {
-            "key": "优质资源",
-            "name": "优质资源",
-            "type": 3,
-            "api": "./py/优质资源.py"
+          "category": 4,
+          "name": "framedrop",
+          "value": "1"
         },
         {
-            "key": "最大资源",
-            "name": "最大资源",
-            "type": 3,
-            "api": "./py/最大资源.py"
+          "category": 4,
+          "name": "soundtouch",
+          "value": "1"
         },
         {
-            "key": "如意资源",
-            "name": "如意资源",
-            "type": 3,
-            "api": "./py/如意资源.py"
+          "category": 4,
+          "name": "start-on-prepared",
+          "value": "1"
         }
-    ]
+      ]
+    },
+    {
+      "group": "硬解码",
+      "options": [
+        {
+          "category": 4,
+          "name": "opensles",
+          "value": "0"
+        },
+        {
+          "category": 4,
+          "name": "overlay-format",
+          "value": "842225234"
+        },
+        {
+          "category": 4,
+          "name": "framedrop",
+          "value": "1"
+        },
+        {
+          "category": 4,
+          "name": "soundtouch",
+          "value": "1"
+        },
+        {
+          "category": 4,
+          "name": "start-on-prepared",
+          "value": "1"
+        },
+        {
+          "category": 1,
+          "name": "mediacodec-handle-resolution-change",
+          "value": "1"
+        },
+        {
+          "category": 1,
+          "name": "mediacodec-hevc",
+          "value": "1"
+        }
+      ]
+    }
+  ],
+  "ads": [
+    "iqiyi.hbuqu.com",
+    "vip.ffzyad.com"
+  ],
+  "doh": [
+    {
+      "name": "Google",
+      "url": "https://dns.google/dns-query",
+      "ips": [
+        "8.8.4.4",
+        "8.8.8.8"
+      ]
+    },
+    {
+      "name": "Cloudflare",
+      "url": "https://cloudflare-dns.com/dns-query",
+      "ips": [
+        "1.1.1.1",
+        "1.0.0.1",
+        "2606:4700:4700::1111",
+        "2606:4700:4700::1001"
+      ]
+    },
+    {
+      "name": "AdGuard",
+      "url": "https://unfiltered.adguard-dns.com/dns-query",
+      "ips": [
+        "94.140.14.140",
+        "94.140.14.141"
+      ]
+    },
+    {
+      "name": "DNSPod",
+      "url": "https://doh.pub/dns-query",
+      "ips": [
+        "1.12.12.12",
+        "120.53.53.53"
+      ]
+    },
+    {
+      "name": "AliDNS",
+      "url": "https://dns.alidns.com/dns-query",
+      "ips": [
+        "223.5.5.5",
+        "223.6.6.6",
+        "2400:3200::1",
+        "2400:3200:baba::1"
+      ]
+    },
+    {
+      "name": "DNSLA",
+      "url": "https://doh.dnsla.net/dns-query",
+      "ips": [
+        "1.2.4.8",
+        "210.2.4.8"
+      ]
+    }
+  ]
 }
