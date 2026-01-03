@@ -113,7 +113,7 @@
         "*ffzy*"
       ],
       "regex": [
-        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){1,25}\\n#EXT-X-DISCONTINUITY"
+        "#EXT-X-DISCONTINUITY(?:\n(?!#EXT-X-DISCONTINUITY).*){1,25}\n#EXT-X-DISCONTINUITY"
       ]
     },
     {
@@ -125,7 +125,7 @@
         "*fengbao*"
       ],
       "regex": [
-        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){1,25}\\n#EXT-X-DISCONTINUITY"
+        "#EXT-X-DISCONTINUITY(?:\n(?!#EXT-X-DISCONTINUITY).*){1,25}\n#EXT-X-DISCONTINUITY"
       ]
     }
   ],
