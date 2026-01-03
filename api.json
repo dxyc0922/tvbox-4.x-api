@@ -113,7 +113,7 @@
         "*ffzy*"
       ],
       "regex": [
-        "#EXT-X-DISCONTINUITY(?:\n(?!#EXT-X-DISCONTINUITY).*){1,25}\n#EXT-X-DISCONTINUITY"
+        "#EXT-X-DISCONTINUITY(?:\n.*?){8}\n#EXT-X-DISCONTINUITY","#EXT-X-DISCONTINUITY(?:\n(?!#EXT-X-DISCONTINUITY).*){10}\n#EXT-X-DISCONTINUITY"
       ]
     },
     {
