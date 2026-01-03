@@ -4,11 +4,12 @@
       "key": "ffzy",
       "name": "非凡资源",
       "api": "http://ffzy.tv/api.php/provide/vod/",
-      "playUrl": "https://svip.ffzyplay.com/?url=",
+      "playUrl": "",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1,
       "type": 1,
+      "hide": 1,
       "categories": [
         "动作片",
         "喜剧片",
@@ -41,6 +42,17 @@
   ],
   "parses": [
     {
+      "name": "非凡解析",
+      "type": 1,
+      "url": "https://svip.ffzyplay.com/?url=",
+      "parse": 1,
+      "ext": {
+        "flag": [
+          "feifan"
+        ]
+      }
+    },
+    {
       "name": "解析聚合",
       "type": 3,
       "url": "Demo"
@@ -54,8 +66,12 @@
   "rules": [
     {
       "name": "非凡广告",
-      "hosts": ["*.ffzy*"],
-      "regex": ["#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,12}\\n#EXT-X-DISCONTINUITY"]
+      "hosts": [
+        "*.ffzy*"
+      ],
+      "regex": [
+        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,12}\\n#EXT-X-DISCONTINUITY"
+      ]
     }
   ],
   "ijk": [
@@ -86,6 +102,21 @@
           "category": 4,
           "name": "start-on-prepared",
           "value": "1"
+        },
+        {
+          "category": 1,
+          "name": "mediacodec",
+          "value": "1"
+        },
+        {
+          "category": 1,
+          "name": "mediacodec-auto-rotate",
+          "value": "1"
+        },
+        {
+          "category": 1,
+          "name": "mediacodec-handle-resolution-change",
+          "value": "1"
         }
       ]
     },
@@ -115,6 +146,16 @@
         {
           "category": 4,
           "name": "start-on-prepared",
+          "value": "1"
+        },
+        {
+          "category": 1,
+          "name": "mediacodec",
+          "value": "1"
+        },
+        {
+          "category": 1,
+          "name": "mediacodec-auto-rotate",
           "value": "1"
         },
         {
