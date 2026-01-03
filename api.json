@@ -91,9 +91,27 @@
       "parse": 1,
       "ext": {
         "flag": [
-          "feifan"
+          "feifan",
+          "ffzym3u8"
         ]
-      }
+      },
+      "regex": [
+        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,12}\\n#EXT-X-DISCONTINUITY"
+      ]
+    },
+    {
+      "name": "暴风解析",
+      "type": 1,
+      "url": "https://vip.vipuuvip.com/?url=",
+      "parse": 1,
+      "ext": {
+        "flag": [
+          "bfzym3u8"
+        ]
+      },
+      "regex": [
+        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,25}\\n#EXT-X-DISCONTINUITY"
+      ]
     },
     {
       "name": "解析聚合",
@@ -107,15 +125,6 @@
     }
   ],
   "rules": [
-    {
-      "name": "非凡广告",
-      "hosts": [
-        "*.ffzy*"
-      ],
-      "regex": [
-        "#EXT-X-DISCONTINUITY(?:\\n(?!#EXT-X-DISCONTINUITY).*){8,12}\\n#EXT-X-DISCONTINUITY"
-      ]
-    }
   ],
   "ijk": [
     {
@@ -214,10 +223,7 @@
       ]
     }
   ],
-  "ads": [
-    "iqiyi.hbuqu.com",
-    "vip.ffzyad.com"
-  ],
+  "ads": [],
   "doh": [
     {
       "name": "Google",
